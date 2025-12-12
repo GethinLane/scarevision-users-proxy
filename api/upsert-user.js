@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       return send(res, 500, { ok: false, error: "Server not configured (missing env vars)" });
     }
 
-    const filter = encodeURIComponent(`{SquarespaceUserId}="${String(squarespaceUserId)}"`);
+const filter = encodeURIComponent(`{fld0umlfr5wWmWXYs}="${String(squarespaceUserId)}"`);
     const found = await airtableRequest({
       baseId,
       token,
