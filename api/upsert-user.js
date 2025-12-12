@@ -59,13 +59,13 @@ export default async function handler(req, res) {
       path: `${table}?maxRecords=1&filterByFormula=${filter}`,
     });
 
-    const fields = {
-      SquarespaceUserId: String(squarespaceUserId),
-      Email: String(email),
-      FirstName: firstName ? String(firstName) : "",
-      LastName: lastName ? String(lastName) : "",
-      LastSeen: new Date().toISOString(),
-    };
+const fields = {
+  fld0umlfr5wWmWXYs: String(squarespaceUserId), // SquarespaceUserId
+  fldhg6BuNs8u7jWBo: String(email),             // Email
+  fld8bn63sDhyiW6wu: firstName ? String(firstName) : "",
+  fldi4LGEWOuaH1ps7: lastName ? String(lastName) : "",
+  fldZh2PBvTFrXFBmQ: new Date().toISOString(),  // LastSeen
+};
 
     if (found.records?.length) {
       const recordId = found.records[0].id;
