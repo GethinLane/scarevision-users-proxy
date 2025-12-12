@@ -1,7 +1,17 @@
 // Vercel Serverless Function (Node.js)
 // Endpoint: POST /api/upsert-user
 
+const ALLOWED_ORIGIN = "https://www.scarevision.co.uk"; // change if needed
+
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-sca-secret");
+  res.setHeader("Access-Control-Max-Age", "86400"); // cache preflight 24h
+}
+
 function send(res, status, data) {
+  setCors(res);
   res.status(status).setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(data));
 }
@@ -29,11 +39,18 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
 }
 
 export default async function handler(req, res) {
+  // ✅ Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    setCors(res);
+    return res.status(204).end();
+  }
+
   try {
     if (req.method !== "POST") {
       return send(res, 405, { ok: false, error: "Use POST" });
     }
 
+    // Basic protection so random people can't spam your Airtable
     const secret = req.headers["x-sca-secret"];
     if (!secret || secret !== process.env.SCA_UPSERT_SECRET) {
       return send(res, 401, { ok: false, error: "Unauthorized" });
@@ -52,20 +69,21 @@ export default async function handler(req, res) {
       return send(res, 500, { ok: false, error: "Server not configured (missing env vars)" });
     }
 
-const filter = encodeURIComponent(`{fld0umlfr5wWmWXYs}="${String(squarespaceUserId)}"`);
+    // Find existing record by SquarespaceUserId
+    const filter = encodeURIComponent(`{SquarespaceUserId}="${String(squarespaceUserId)}"`);
     const found = await airtableRequest({
       baseId,
       token,
       path: `${table}?maxRecords=1&filterByFormula=${filter}`,
     });
 
-const fields = {
-  fld0umlfr5wWmWXYs: String(squarespaceUserId), // SquarespaceUserId
-  fldhg6BuNs8u7jWBo: String(email),             // Email
-  fld8bn63sDhyiW6wu: firstName ? String(firstName) : "",
-  fldi4LGEWOuaH1ps7: lastName ? String(lastName) : "",
-  fldZh2PBvTFrXFBmQ: new Date().toISOString(),  // LastSeen
-};
+    const fields = {
+      SquarespaceUserId: String(squarespaceUserId),
+      Email: String(email),
+      FirstName: firstName ? String(firstName) : "",
+      LastName: lastName ? String(lastName) : "",
+      LastSeen: new Date().toISOString(),
+    };
 
     if (found.records?.length) {
       const recordId = found.records[0].id;
