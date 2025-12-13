@@ -351,3 +351,31 @@ window.addEventListener("storage", async (e) => {
     console.warn("Could not refresh progress:", err);
   }
 });
+// ✅ Live sync channel (more reliable than storage)
+const scaProgressChannel = ("BroadcastChannel" in window)
+  ? new BroadcastChannel("sca-progress")
+  : null;
+
+function scaRefreshProgress() {
+  if (!window.SCAProgress?.getProgress) return;
+  return window.SCAProgress.getProgress().then(({ completed }) => {
+    window.scaCompletedSet = new Set((completed || []).map(String));
+    window.applyCompletedStyles();
+  }).catch(() => {});
+}
+
+// Receive live updates while this page is open
+if (scaProgressChannel) {
+  scaProgressChannel.onmessage = (e) => {
+    if (e?.data?.type === "progress-updated") scaRefreshProgress();
+  };
+}
+
+// Fallback: storage event (works in many cases)
+window.addEventListener("storage", (e) => {
+  if (e.key === "sca-progress-updated") scaRefreshProgress();
+});
+
+// ✅ Also refresh whenever you return to the tab/page (covers same-tab navigation)
+window.addEventListener("focus", scaRefreshProgress);
+window.addEventListener("pageshow", scaRefreshProgress);
