@@ -338,3 +338,16 @@ function manualRefresh() {
     localStorage.removeItem('airtableData');
     fetchData();
 }
+// 🔁 Listen for progress updates from other pages
+window.addEventListener("storage", async (e) => {
+  if (e.key !== "sca-progress-updated") return;
+  if (!window.SCAProgress?.getProgress) return;
+
+  try {
+    const { completed } = await window.SCAProgress.getProgress();
+    window.scaCompletedSet = new Set((completed || []).map(String));
+    window.applyCompletedStyles();
+  } catch (err) {
+    console.warn("Could not refresh progress:", err);
+  }
+});
