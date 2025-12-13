@@ -282,18 +282,25 @@ body {
     position: relative; /* keep for pseudo elements */
 }
 
-/* Incomplete/default: solid square */
+/* Uncompleted: empty square checkbox */
 .case-entry::before {
-    content: '';
-    display: block;
-    width: 14px;
-    height: 14px;
-    margin-right: 10px;
-    background-color: #d6dde9; /* light blue */
-    border-radius: 2px;
-    transition: background-color 0.3s, color 0.3s;
-    flex-shrink: 0;
+  content: "\f0c8";                 /* fa-square */
+  font-family: "Font Awesome 6 Free";
+  font-weight: 400;                 /* outlined */
+  font-size: 18px;
+
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-right: 10px;
+  color: #d6dde9;                   /* light blue */
+  background: transparent;
+  transition: color 0.3s;
 }
+
 
 /* Default hover: square turns dark blue */
 .case-entry:hover {
@@ -301,7 +308,7 @@ body {
 }
 
 .case-entry:hover::before {
-    background-color: #253551; /* dark blue */
+  color: #253551;                   /* dark blue */
 }
 
 .case-entry a {
@@ -371,8 +378,8 @@ body {
   height: 18px !important;
   margin-right: 10px;
   display: inline-flex;
-  align-items:;
-  justify-content: ;
+  align-items:center;
+  justify-content:center;
 
   background: transparent !important;
   color: #4fbf67;
