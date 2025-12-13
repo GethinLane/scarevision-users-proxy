@@ -279,30 +279,38 @@ body {
     margin-bottom: 10px;
     cursor: pointer;
     transition: font-weight 0.3s;
-    position: relative; /* keep for pseudo elements */
+
+    /* ✅ NEW: create a reliable left “checkbox gutter” */
+    position: relative;
+    padding-left: 28px;
 }
 
 /* Uncompleted: empty square checkbox */
 .case-entry::before {
-  content: "\f0c8";                 /* fa-square */
-  font-family: "Font Awesome 6 Free";
-  font-weight: 400;                 /* outlined */
-  font-size: 18px;
+    content: "\f0c8";                 /* fa-square */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 400;                 /* outlined */
+    font-size: 18px;
 
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+    /* ✅ NEW: anchor the icon into the left gutter */
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
 
-  margin-right: 10px;
-  color: #d6dde9;                   /* light blue */
-  background: transparent;
-  transition: color 0.3s;
+    width: 24px;                      /* click + visual zone */
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 
-   cursor: pointer;
+    margin-right: 0;                  /* handled by padding-left on .case-entry */
+    color: #d6dde9;                   /* light blue */
+    background: transparent;
+    transition: color 0.3s, transform 0.15s;
+
+    cursor: pointer;
 }
-
 
 /* Default hover: square turns dark blue */
 .case-entry:hover {
@@ -310,13 +318,12 @@ body {
 }
 
 .case-entry:hover::before {
-  color: #253551;                   /* dark blue */
+    color: #253551;                   /* dark blue */
 }
 
 .case-entry::before:active {
-  transform: scale(0.9);
+    transform: translateY(-50%) scale(0.9);
 }
-
 
 .case-entry a {
     flex-grow: 1;
@@ -367,43 +374,40 @@ body {
 /* ===============================
    ✅ COMPLETED CASE STATE (single FA checkbox icon)
    =============================== */
-
-/* Light green (default) + darker green (hover) */
 :root {
     --sca-green-light: #9ad6a9; /* light green to mirror light blue */
     --sca-green-dark: #2f7d3b;  /* darker green to mirror dark blue */
 }
 
-/* Completed: replace the square with a Font Awesome "square-check" icon */
-/* Completed: outlined green checkbox (clear + accessible) */
+/* Completed: outlined green checkbox */
 .case-entry.is-completed::before {
-  content: "\f14a";                 /* fa-square-check */
-  font-family: "Font Awesome 6 Free";
-  font-weight: 400;                 /* outlined */
-    font-size: 18px;                 /* bump more so it’s obvious */
-  width: 18px !important;
-  height: 18px !important;
-  margin-right: 10px;
-  display: inline-flex;
-  align-items:center;
-  justify-content:center;
+    content: "\f14a";                 /* fa-square-check */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 400;                 /* outlined */
+    font-size: 18px;
 
-  background: transparent !important;
-  color: #4fbf67;
+    /* keep same gutter positioning */
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
 
-   transition: color 0.2s, transform 0.15s;
+    width: 24px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    background: transparent;
+    color: #4fbf67;
+    transition: color 0.2s, transform 0.15s;
+
+    cursor: pointer;
 }
 
-
-/* Completed hover: dark green (and prevent the default blue square hover) */
+/* Completed hover: dark green */
 .case-entry.is-completed:hover::before {
-    background-color: transparent !important;
-    color: var(--sca-green-dark);
-}
-
-/* If you previously had a tick rendered via ::after, disable it */
-.case-entry.is-completed:hover::before {
-  color: #1f7a3a;                   /* darker green on hover */
+    color: #1f7a3a;
 }
 
 /* ===============================
