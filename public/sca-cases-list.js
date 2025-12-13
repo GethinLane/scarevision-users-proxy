@@ -1,6 +1,16 @@
 // sca-cases-list.js
 // Ensure the code runs after the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', async () => {
+    // ✅ NEW: always start at the top of the page
+    // (prevents browser/Squarespace restoring scroll to the bottom)
+    try {
+        if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+        window.scrollTo(0, 0);
+        // double-tap after layout settles (accordion/grid/Select2 can shift height)
+        setTimeout(() => window.scrollTo(0, 0), 50);
+        setTimeout(() => window.scrollTo(0, 0), 250);
+    } catch {}
+
     initializeSelect2();
     loadData();
     initializeDisplaySettings();
@@ -47,9 +57,6 @@ window.applyCompletedStyles = window.applyCompletedStyles || function applyCompl
 
 let __scaProgressLoaded = false;
 
-/**
- * Wait briefly for sca-progress.js to load if script order is not guaranteed.
- */
 function waitForSCAProgress(maxMs = 5000, intervalMs = 100) {
     return new Promise((resolve) => {
         const start = Date.now();
@@ -79,11 +86,7 @@ async function loadProgressOnce() {
 
     try {
         const { progress } = await window.SCAProgress.init();
-
-        // progress.completed are numbers; store as strings for dataset matching
         window.scaCompletedSet = new Set((progress?.completed || []).map(String));
-
-        // Apply immediately (in case list already rendered)
         window.applyCompletedStyles();
     } catch (e) {
         console.warn("Could not load completion progress:", e?.message || e);
@@ -91,7 +94,7 @@ async function loadProgressOnce() {
 }
 
 /* =========================================================
-   Airtable caching + fetch (UNCHANGED behavior)
+   Airtable caching + fetch
    ========================================================= */
 
 function loadData() {
@@ -109,7 +112,7 @@ function loadData() {
 function fetchData() {
     const baseId = 'appcfY32cRVRuUJ9i';
     const tableId = 'tbl0zASOWTNNXGayL';
-    const apiKey = '__PASTE_YOUR_PAT_HERE__'; // <— paste your PAT locally
+    const apiKey = '__PASTE_YOUR_PAT_HERE__'; // paste locally
     let allRecords = [], offset = '';
 
     (function nextPage() {
@@ -156,13 +159,11 @@ function populateFilters(records) {
 function initializeDisplaySettings() {
     const params = new URLSearchParams(window.location.search);
 
-    // 1) Show-Diagnosis switch: checked = show diagnosis; default = true
     const showDiagnosis = params.has('showDiagnosis')
         ? params.get('showDiagnosis') === 'true'
         : true;
     document.getElementById('toggleDisplayType').checked = showDiagnosis;
 
-    // 2) Content chips: default to Clinical Experience Groups (Domain)
     const sortParam = params.get('sortType');
     const isDomain = sortParam ? sortParam === 'Domain' : true;
     document.getElementById('btnClinicalTopic')
@@ -170,14 +171,12 @@ function initializeDisplaySettings() {
     document.getElementById('btnDomain')
         .classList.toggle('active', isDomain);
 
-    // 3) Video-only via URL (?videoOnly=true, ?videoOnly=1, or ?videoOnly)
     if (params.has('videoOnly')) {
         const v = params.get('videoOnly');
-        const isOn = v === 'true' || v === '1' || v === ''; // empty value counts as "on"
+        const isOn = v === 'true' || v === '1' || v === '';
         document.getElementById('toggleVideoOnly').checked = isOn;
     }
 
-    // 4) Initial render
     filterCases();
 }
 
@@ -197,7 +196,6 @@ function filterCases() {
         return themes.every(t => recThemes.includes(t));
     });
 
-    // Video-only filter
     if (document.getElementById('toggleVideoOnly').checked) {
         filtered = filtered.filter(r => !!r.fields['Video Link']);
     }
@@ -246,8 +244,6 @@ function displayCases(cases) {
             const div = document.createElement('div');
             div.className = 'case-entry';
 
-            // ✅ data-case-id with fallback field names
-            // ✅ normalize to match backend numeric storage (fixes "001" vs 1)
             const rawCaseId =
                 record.fields['Case ID'] ??
                 record.fields['CaseID'] ??
@@ -260,7 +256,6 @@ function displayCases(cases) {
                 div.dataset.caseId = String(n);
             }
 
-            // Text link
             const linkField = showDiagnosis ? 'Link' : 'Link-nt';
             const anchor = document.createElement('a');
             anchor.href = record.fields[linkField];
@@ -268,11 +263,9 @@ function displayCases(cases) {
             anchor.textContent = showDiagnosis ? record.fields['Name'] : record.fields['Presenting Complaint'];
             div.appendChild(anchor);
 
-            // Actions cluster
             const actions = document.createElement('div');
             actions.className = 'case-actions';
 
-            // Video icon
             if (record.fields['Video Link']) {
                 const va = document.createElement('a');
                 va.href = record.fields['Video Link'];
@@ -286,7 +279,6 @@ function displayCases(cases) {
                 actions.appendChild(va);
             }
 
-            // Difficulty stars
             if (showDiff) {
                 const sa = document.createElement('a');
                 sa.href = record.fields[linkField];
@@ -315,7 +307,6 @@ function displayCases(cases) {
         container.appendChild(panel);
     });
 
-    // Keep open panels on resize (same behavior as your original)
     window.addEventListener('resize', () => {
         document.querySelectorAll('.panel').forEach(p => {
             if (p.previousElementSibling.classList.contains('active')) {
@@ -324,7 +315,6 @@ function displayCases(cases) {
         });
     });
 
-    // ✅ Re-apply completion classes after every render
     window.applyCompletedStyles();
 }
 
