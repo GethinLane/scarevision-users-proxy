@@ -366,9 +366,10 @@ body {
   content: "\f14a";                 /* fa-square-check */
   font-family: "Font Awesome 6 Free";
   font-weight: 400;                 /* outlined */
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
+    font-size: 18px;                 /* bump more so it’s obvious */
+  width: 18px !important;
+  height: 18px !important;
+  margin-right: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
