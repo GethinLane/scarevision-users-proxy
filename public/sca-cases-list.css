@@ -279,38 +279,31 @@ body {
     margin-bottom: 10px;
     cursor: pointer;
     transition: font-weight 0.3s;
-
-    /* ✅ NEW: create a reliable left “checkbox gutter” */
     position: relative;
-    padding-left: 28px;
 }
 
 /* Uncompleted: empty square checkbox */
 .case-entry::before {
-    content: "\f0c8";                 /* fa-square */
-    font-family: "Font Awesome 6 Free";
-    font-weight: 400;                 /* outlined */
-    font-size: 18px;
+  content: "\f0c8";                 /* fa-square */
+  font-family: "Font Awesome 6 Free";
+  font-weight: 400;
+  font-size: 18px;
 
-    /* ✅ NEW: anchor the icon into the left gutter */
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
+  /* ✅ key: bigger hitbox but stays in the same place */
+  width: 28px;                      /* was 18px */
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;                   /* reserve space so text never overlaps */
 
-    width: 24px;                      /* click + visual zone */
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    margin-right: 0;                  /* handled by padding-left on .case-entry */
-    color: #d6dde9;                   /* light blue */
-    background: transparent;
-    transition: color 0.3s, transform 0.15s;
-
-    cursor: pointer;
+  margin-right: 10px;
+  color: #d6dde9;
+  background: transparent;
+  transition: color 0.3s, transform 0.15s;
+  cursor: pointer;
 }
+
 
 /* Default hover: square turns dark blue */
 .case-entry:hover {
@@ -381,28 +374,23 @@ body {
 
 /* Completed: outlined green checkbox */
 .case-entry.is-completed::before {
-    content: "\f14a";                 /* fa-square-check */
-    font-family: "Font Awesome 6 Free";
-    font-weight: 400;                 /* outlined */
-    font-size: 18px;
+  content: "\f14a";                 /* fa-square-check */
+  font-family: "Font Awesome 6 Free";
+  font-weight: 400;
+  font-size: 18px;
 
-    /* keep same gutter positioning */
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
+  width: 28px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
 
-    width: 24px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    background: transparent;
-    color: #4fbf67;
-    transition: color 0.2s, transform 0.15s;
-
-    cursor: pointer;
+  margin-right: 10px;
+  background: transparent;
+  color: #4fbf67;
+  transition: color 0.2s, transform 0.15s;
+  cursor: pointer;
 }
 
 /* Completed hover: dark green */
