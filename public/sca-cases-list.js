@@ -1,10 +1,11 @@
+// sca-cases-list.js
 // Ensure the code runs after the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', async () => {
     initializeSelect2();
     loadData();
     initializeDisplaySettings();
 
-    // ✅ NEW: load completion progress once (safe if it fails)
+    // ✅ Load completion progress once (robust to script load order)
     await loadProgressOnce();
 
     // Re-run filters whenever any control changes:
@@ -32,7 +33,7 @@ function initializeSelect2() {
 }
 
 /* =========================================================
-   ✅ NEW: Completion glue (completed only; no flagged yet)
+   Completion glue (completed only; no flagged yet)
    ========================================================= */
 
 window.scaCompletedSet = window.scaCompletedSet || new Set();
@@ -46,16 +47,43 @@ window.applyCompletedStyles = window.applyCompletedStyles || function applyCompl
 
 let __scaProgressLoaded = false;
 
+/**
+ * Wait briefly for sca-progress.js to load if script order is not guaranteed.
+ */
+function waitForSCAProgress(maxMs = 5000, intervalMs = 100) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const t = setInterval(() => {
+            if (window.SCAProgress?.init) {
+                clearInterval(t);
+                resolve(true);
+                return;
+            }
+            if (Date.now() - start > maxMs) {
+                clearInterval(t);
+                resolve(false);
+            }
+        }, intervalMs);
+    });
+}
+
 async function loadProgressOnce() {
     if (__scaProgressLoaded) return;
     __scaProgressLoaded = true;
 
-    if (!window.SCAProgress?.init) return;
+    const ok = await waitForSCAProgress();
+    if (!ok) {
+        console.warn("SCAProgress not available (sca-progress.js not loaded or blocked).");
+        return;
+    }
 
     try {
         const { progress } = await window.SCAProgress.init();
-        // progress.completed is numbers; convert to strings for dataset matching
+
+        // progress.completed are numbers; store as strings for dataset matching
         window.scaCompletedSet = new Set((progress?.completed || []).map(String));
+
+        // Apply immediately (in case list already rendered)
         window.applyCompletedStyles();
     } catch (e) {
         console.warn("Could not load completion progress:", e?.message || e);
@@ -63,7 +91,7 @@ async function loadProgressOnce() {
 }
 
 /* =========================================================
-   Existing Airtable caching + fetch
+   Airtable caching + fetch (UNCHANGED behavior)
    ========================================================= */
 
 function loadData() {
@@ -81,10 +109,7 @@ function loadData() {
 function fetchData() {
     const baseId = 'appcfY32cRVRuUJ9i';
     const tableId = 'tbl0zASOWTNNXGayL';
-
-    // IMPORTANT: paste your existing PAT token string here locally.
-    const apiKey = 'patIaCiSU4KaGocOw.ca221afed9b6c4bc9a9c2cdad23c2bf95c871886912cb250ea4df3870bd6770e'; // <— your API key
-
+    const apiKey = '__PASTE_YOUR_PAT_HERE__'; // <— paste your PAT locally
     let allRecords = [], offset = '';
 
     (function nextPage() {
@@ -151,7 +176,6 @@ function initializeDisplaySettings() {
         const isOn = v === 'true' || v === '1' || v === ''; // empty value counts as "on"
         document.getElementById('toggleVideoOnly').checked = isOn;
     }
-    // (If the param is absent, the toggle keeps whatever default is in your HTML)
 
     // 4) Initial render
     filterCases();
@@ -222,17 +246,19 @@ function displayCases(cases) {
             const div = document.createElement('div');
             div.className = 'case-entry';
 
-            // ✅ NEW: add data-case-id (digits-only stored as text)
-// Uses fallback field names just in case
-const caseId =
-  record.fields['Case ID'] ??
-  record.fields['CaseID'] ??
-  record.fields['Case Number'] ??
-  record.fields['Case'];
+            // ✅ data-case-id with fallback field names
+            // ✅ normalize to match backend numeric storage (fixes "001" vs 1)
+            const rawCaseId =
+                record.fields['Case ID'] ??
+                record.fields['CaseID'] ??
+                record.fields['Case Number'] ??
+                record.fields['Case'];
 
-if (caseId != null && String(caseId).trim() !== '') {
-  div.dataset.caseId = String(caseId).trim();
-}
+            const trimmed = String(rawCaseId ?? '').trim();
+            const n = Number(trimmed);
+            if (Number.isFinite(n)) {
+                div.dataset.caseId = String(n);
+            }
 
             // Text link
             const linkField = showDiagnosis ? 'Link' : 'Link-nt';
@@ -289,7 +315,7 @@ if (caseId != null && String(caseId).trim() !== '') {
         container.appendChild(panel);
     });
 
-    // Keep open panels on resize (same behavior; note: adds a listener each render, as in your original)
+    // Keep open panels on resize (same behavior as your original)
     window.addEventListener('resize', () => {
         document.querySelectorAll('.panel').forEach(p => {
             if (p.previousElementSibling.classList.contains('active')) {
@@ -298,10 +324,8 @@ if (caseId != null && String(caseId).trim() !== '') {
         });
     });
 
-    // ✅ NEW: re-apply completion classes after every render
-    if (typeof window.applyCompletedStyles === 'function') {
-        window.applyCompletedStyles();
-    }
+    // ✅ Re-apply completion classes after every render
+    window.applyCompletedStyles();
 }
 
 // Filter grouping helper
