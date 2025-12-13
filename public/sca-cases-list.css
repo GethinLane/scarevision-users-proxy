@@ -14,7 +14,7 @@ body {
     background-color: white;
     color: #253551;
     cursor: pointer;
-    padding: 18px 50px 18px 18px;
+    padding: 18px 50px 18px 18px; /* Left padding: 18px, Right padding: 50px for the +/- symbol */
     width: 100%;
     border: none;
     border-top: 1px solid #d6dde9;
@@ -22,7 +22,7 @@ body {
     outline: none;
     font-size: 1.2rem;
     font-weight: medium;
-    position: relative;
+    position: relative; /* For pseudo-elements */
     transition: background-color 0.4s, color 0.4s;
 }
 
@@ -68,29 +68,29 @@ body {
     overflow: hidden;
     transition: max-height 0.2s ease-out;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    color: #253551;
+    grid-template-columns: 1fr 1fr; /* Responsive grid */
+    color: #253551; /* Dark blue text color */
 }
 
 @media (max-width: 768px) {
     .panel {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr; /* Single column on small screens */
     }
 }
 
 .panel > div {
-    padding: 15px;
+    padding: 15px; /* Padding inside grid items */
 }
 
 /* ===============================
-   Switch styles
+   Base switch styles
    =============================== */
 .switch {
     position: relative;
     display: inline-block;
     width: 56px;
     height: 30px;
-    margin: 0 10px;
+    margin: 0 10px; /* Ensure consistent margin */
 }
 
 .switch input {
@@ -103,21 +103,23 @@ body {
 .switch .slider1 {
     position: absolute;
     cursor: pointer;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     transition: background-color 0.4s;
-    border-radius: 30px;
-    box-sizing: border-box;
+    border-radius: 30px; /* Consistent border-radius */
+    box-sizing: border-box; /* Include padding and border in dimensions */
 }
 
-/* Default switch */
+/* Default switch styles */
 .switch .slider {
-    background-color: #253551;
+    background-color: #253551; /* Default background color */
 }
 
-.switch .slider:before,
-.switch .slider1:before {
-    content: "";
+.switch .slider:before {
     position: absolute;
+    content: "";
     height: 22px;
     width: 22px;
     left: 4px;
@@ -127,69 +129,95 @@ body {
     border-radius: 50%;
 }
 
-.switch input:checked + .slider:before,
+.switch input:checked + .slider {
+    background-color: #253551;
+}
+
+.switch input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+/* Custom toggle switch styles */
+.switch.custom-toggle .slider1 {
+    background-color: #d6dde9; /* Light blue when off */
+}
+
+.switch.custom-toggle .slider1:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: transform 0.4s;
+    border-radius: 50%;
+}
+
+.switch.custom-toggle input:checked + .slider1 {
+    background-color: #253551; /* Dark blue when on */
+}
+
 .switch.custom-toggle input:checked + .slider1:before {
     transform: translateX(26px);
 }
 
-/* Custom toggle */
-.switch.custom-toggle .slider1 {
-    background-color: #d6dde9;
-}
-
-.switch.custom-toggle input:checked + .slider1 {
-    background-color: #253551;
-}
-
+/* Center switches vertically */
 .switch,
 .switch.custom-toggle {
     display: flex;
     align-items: center;
 }
 
-/* ===============================
-   Labels & filters
-   =============================== */
+/* Label text styles */
 .label-text {
     cursor: pointer;
     margin: 0;
-    color: #d6dde9;
-    font-weight: normal;
-    text-align: center;
     transition: color 0.4s, font-weight 0.4s;
+    color: #d6dde9; /* Light blue */
+    font-weight: normal;
+    word-break: break-word;
+    text-align: center;
 }
 
 .label-text.active {
-    color: #253551;
+    color: #253551; /* Dark blue */
     font-weight: bold;
 }
 
+/* Filters container */
 .filters-container {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
+    align-items: stretch;
     margin: 10px 0;
     padding: 0 10px;
 }
 
+/* Filter item */
 .filter-item {
     flex: 1 1 22%;
+    box-sizing: border-box;
     margin: 5px 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
 }
 
+/* Toggle group */
 .toggle-group {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex: 1;
 }
 
 .toggle-group.center {
     justify-content: center;
 }
 
+/* Toggle labels */
 .toggle-label {
     flex: 1;
     padding: 0 10px;
@@ -199,31 +227,36 @@ body {
 }
 
 .toggle-label.left {
+    text-align: right;
     justify-content: flex-end;
 }
 
 .toggle-label.right {
+    text-align: left;
     justify-content: flex-start;
 }
 
+/* Adjustments for smaller screens */
 @media (max-width: 1300px) {
-    .filter-item { flex: 1 1 45%; }
+    .filter-item {
+        flex: 1 1 45%;
+    }
 }
 
 @media (max-width: 800px) {
-    .filter-item { flex: 1 1 100%; }
+    .filter-item {
+        flex: 1 1 100%;
+    }
 }
 
-/* ===============================
-   Select2 styles
-   =============================== */
+/* Select2 styles */
 .select2-container--default .select2-selection--multiple {
     background-color: white;
     border: 1px solid #aaa;
     border-radius: 0;
 }
 
-.select2-container--default .select2-selection__choice {
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
     background-color: #253551;
     border: 1px solid #253551;
     color: white;
@@ -231,7 +264,7 @@ body {
     padding: 0 5px;
 }
 
-.select2-selection__choice__remove {
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
     color: white;
     cursor: pointer;
     margin-right: 5px;
@@ -246,30 +279,34 @@ body {
     margin-bottom: 10px;
     cursor: pointer;
     transition: font-weight 0.3s;
-    position: relative; /* REQUIRED for tick positioning */
+    position: relative; /* keep for pseudo elements */
 }
 
+/* Incomplete/default: solid square */
 .case-entry::before {
     content: '';
+    display: block;
     width: 14px;
     height: 14px;
     margin-right: 10px;
-    background-color: #d6dde9;
+    background-color: #d6dde9; /* light blue */
     border-radius: 2px;
-    transition: background-color 0.3s;
+    transition: background-color 0.3s, color 0.3s;
     flex-shrink: 0;
 }
 
+/* Default hover: square turns dark blue */
 .case-entry:hover {
     font-weight: bold;
 }
 
 .case-entry:hover::before {
-    background-color: #253551;
+    background-color: #253551; /* dark blue */
 }
 
 .case-entry a {
     flex-grow: 1;
+    flex-shrink: 1;
     min-width: 0;
     text-decoration: none;
     color: #253551;
@@ -282,7 +319,7 @@ body {
 }
 
 /* ===============================
-   Case actions (right-hand cluster)
+   Actions cluster
    =============================== */
 .case-actions {
     margin-left: auto;
@@ -314,30 +351,45 @@ body {
 }
 
 /* ===============================
-   ✅ COMPLETED CASE STATE
+   ✅ COMPLETED CASE STATE (single FA checkbox icon)
    =============================== */
-.case-entry.is-completed::before {
-    background-color: transparent;
-    border: 2px solid #253551;
+
+/* Light green (default) + darker green (hover) */
+:root {
+    --sca-green-light: #9ad6a9; /* light green to mirror light blue */
+    --sca-green-dark: #2f7d3b;  /* darker green to mirror dark blue */
 }
 
+/* Completed: replace the square with a Font Awesome "square-check" icon */
+.case-entry.is-completed::before {
+    content: "\f14a";              /* Font Awesome square-check */
+    font: var(--fa-font-solid);    /* works with FA kit */
+    background-color: transparent !important;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sca-green-light);
+    border: none !important;
+}
+
+/* Completed hover: dark green (and prevent the default blue square hover) */
+.case-entry.is-completed:hover::before {
+    background-color: transparent !important;
+    color: var(--sca-green-dark);
+}
+
+/* If you previously had a tick rendered via ::after, disable it */
 .case-entry.is-completed::after {
-    content: "\f00c"; /* Font Awesome check */
-    font: var(--fa-font-solid);
-    position: absolute;
-    left: 2px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 10px;
-    color: #253551;
-    pointer-events: none;
+    content: none !important;
 }
 
 /* ===============================
-   Refresh button
+   Button styles
    =============================== */
 #refreshButton {
-    background-color: #d6dde9;
+    background-color: #d6dde9; /* Light blue */
     color: white;
     border: none;
     padding: 10px 20px;
@@ -345,12 +397,14 @@ body {
     cursor: pointer;
     border-radius: 5px;
     transition: background-color 0.3s, transform 0.2s;
+    outline: none;
 }
 
 #refreshButton:hover,
 #refreshButton:focus {
-    background-color: #253551;
+    background-color: #253551; /* Dark blue on hover/focus */
     transform: scale(1.05);
+    outline: none;
 }
 
 #refreshButton:active {
