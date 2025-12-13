@@ -1,0 +1,358 @@
+/* ===============================
+   General Styles
+   =============================== */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* ===============================
+   Accordion styles
+   =============================== */
+.accordion {
+    background-color: white;
+    color: #253551;
+    cursor: pointer;
+    padding: 18px 50px 18px 18px;
+    width: 100%;
+    border: none;
+    border-top: 1px solid #d6dde9;
+    text-align: left;
+    outline: none;
+    font-size: 1.2rem;
+    font-weight: medium;
+    position: relative;
+    transition: background-color 0.4s, color 0.4s;
+}
+
+.accordion:last-of-type {
+    border-bottom: 1px solid #d6dde9;
+}
+
+.accordion.active,
+.accordion:hover {
+    background-color: #d6dde9;
+    font-weight: bold;
+}
+
+/* Accordion symbols */
+.accordion::after {
+    content: "+";
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 2rem;
+    color: #d6dde9;
+    transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.accordion.active::after {
+    content: "-";
+    transform: translateY(-50%) rotate(180deg);
+    color: #253551;
+}
+
+.accordion:hover::after {
+    color: #253551;
+}
+
+/* ===============================
+   Panel styles
+   =============================== */
+.panel {
+    padding: 0 18px;
+    background-color: white;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease-out;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    color: #253551;
+}
+
+@media (max-width: 768px) {
+    .panel {
+        grid-template-columns: 1fr;
+    }
+}
+
+.panel > div {
+    padding: 15px;
+}
+
+/* ===============================
+   Switch styles
+   =============================== */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 56px;
+    height: 30px;
+    margin: 0 10px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.switch .slider,
+.switch .slider1 {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    transition: background-color 0.4s;
+    border-radius: 30px;
+    box-sizing: border-box;
+}
+
+/* Default switch */
+.switch .slider {
+    background-color: #253551;
+}
+
+.switch .slider:before,
+.switch .slider1:before {
+    content: "";
+    position: absolute;
+    height: 22px;
+    width: 22px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: transform 0.4s;
+    border-radius: 50%;
+}
+
+.switch input:checked + .slider:before,
+.switch.custom-toggle input:checked + .slider1:before {
+    transform: translateX(26px);
+}
+
+/* Custom toggle */
+.switch.custom-toggle .slider1 {
+    background-color: #d6dde9;
+}
+
+.switch.custom-toggle input:checked + .slider1 {
+    background-color: #253551;
+}
+
+.switch,
+.switch.custom-toggle {
+    display: flex;
+    align-items: center;
+}
+
+/* ===============================
+   Labels & filters
+   =============================== */
+.label-text {
+    cursor: pointer;
+    margin: 0;
+    color: #d6dde9;
+    font-weight: normal;
+    text-align: center;
+    transition: color 0.4s, font-weight 0.4s;
+}
+
+.label-text.active {
+    color: #253551;
+    font-weight: bold;
+}
+
+.filters-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin: 10px 0;
+    padding: 0 10px;
+}
+
+.filter-item {
+    flex: 1 1 22%;
+    margin: 5px 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.toggle-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.toggle-group.center {
+    justify-content: center;
+}
+
+.toggle-label {
+    flex: 1;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toggle-label.left {
+    justify-content: flex-end;
+}
+
+.toggle-label.right {
+    justify-content: flex-start;
+}
+
+@media (max-width: 1300px) {
+    .filter-item { flex: 1 1 45%; }
+}
+
+@media (max-width: 800px) {
+    .filter-item { flex: 1 1 100%; }
+}
+
+/* ===============================
+   Select2 styles
+   =============================== */
+.select2-container--default .select2-selection--multiple {
+    background-color: white;
+    border: 1px solid #aaa;
+    border-radius: 0;
+}
+
+.select2-container--default .select2-selection__choice {
+    background-color: #253551;
+    border: 1px solid #253551;
+    color: white;
+    border-radius: 4px;
+    padding: 0 5px;
+}
+
+.select2-selection__choice__remove {
+    color: white;
+    cursor: pointer;
+    margin-right: 5px;
+}
+
+/* ===============================
+   Case entry styles
+   =============================== */
+.case-entry {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: font-weight 0.3s;
+    position: relative; /* REQUIRED for tick positioning */
+}
+
+.case-entry::before {
+    content: '';
+    width: 14px;
+    height: 14px;
+    margin-right: 10px;
+    background-color: #d6dde9;
+    border-radius: 2px;
+    transition: background-color 0.3s;
+    flex-shrink: 0;
+}
+
+.case-entry:hover {
+    font-weight: bold;
+}
+
+.case-entry:hover::before {
+    background-color: #253551;
+}
+
+.case-entry a {
+    flex-grow: 1;
+    min-width: 0;
+    text-decoration: none;
+    color: #253551;
+}
+
+.case-entry i.star-icon {
+    flex-shrink: 0;
+    color: #d6dde9;
+    transition: color 0.3s;
+}
+
+/* ===============================
+   Case actions (right-hand cluster)
+   =============================== */
+.case-actions {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    min-width: max-content;
+}
+
+.case-entry i.video-icon {
+    color: #d6dde9;
+    font-size: 1.2rem;
+    margin-right: 10px;
+    transition: color .3s;
+}
+
+.case-actions i {
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.case-actions a:not(.video-link) {
+    white-space: nowrap;
+}
+
+.case-entry:hover i.video-icon,
+.case-entry:hover i.star-icon {
+    color: #253551;
+}
+
+/* ===============================
+   ✅ COMPLETED CASE STATE
+   =============================== */
+.case-entry.is-completed::before {
+    background-color: transparent;
+    border: 2px solid #253551;
+}
+
+.case-entry.is-completed::after {
+    content: "\f00c"; /* Font Awesome check */
+    font: var(--fa-font-solid);
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: #253551;
+    pointer-events: none;
+}
+
+/* ===============================
+   Refresh button
+   =============================== */
+#refreshButton {
+    background-color: #d6dde9;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+#refreshButton:hover,
+#refreshButton:focus {
+    background-color: #253551;
+    transform: scale(1.05);
+}
+
+#refreshButton:active {
+    transform: scale(0.95);
+}
