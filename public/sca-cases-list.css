@@ -365,10 +365,16 @@ body {
 .case-entry.is-completed::before {
   content: "\f14a";                 /* fa-square-check */
   font-family: "Font Awesome 6 Free";
-  font-weight: 400;                 /* OUTLINED version */
-  font-size: 16px;                  /* slightly larger than square */
+  font-weight: 400;                 /* outlined */
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
   background: transparent !important;
-  color: #4fbf67;                   /* clear green */
+  color: #4fbf67;
 }
 
 
