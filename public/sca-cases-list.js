@@ -392,7 +392,7 @@ document.addEventListener("click", async (e) => {
 if (e.target.closest("a")) return;
 
 const x = e.clientX - entry.getBoundingClientRect().left;
-if (x > 34) return;
+if (x > 45) return;
 
 e.preventDefault();
 e.stopPropagation();
