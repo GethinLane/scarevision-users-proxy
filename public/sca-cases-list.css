@@ -361,18 +361,16 @@ body {
 }
 
 /* Completed: replace the square with a Font Awesome "square-check" icon */
+/* Completed: outlined green checkbox (clear + accessible) */
 .case-entry.is-completed::before {
-    content: "\f14a";              /* Font Awesome square-check */
-    font: var(--fa-font-solid);    /* works with FA kit */
-    background-color: transparent !important;
-    width: 14px;
-    height: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--sca-green-light);
-    border: none !important;
+  content: "\f14a";                 /* fa-square-check */
+  font-family: "Font Awesome 6 Free";
+  font-weight: 400;                 /* OUTLINED version */
+  font-size: 16px;                  /* slightly larger than square */
+  background: transparent !important;
+  color: #4fbf67;                   /* clear green */
 }
+
 
 /* Completed hover: dark green (and prevent the default blue square hover) */
 .case-entry.is-completed:hover::before {
@@ -381,8 +379,8 @@ body {
 }
 
 /* If you previously had a tick rendered via ::after, disable it */
-.case-entry.is-completed::after {
-    content: none !important;
+.case-entry.is-completed:hover::before {
+  color: #1f7a3a;                   /* darker green on hover */
 }
 
 /* ===============================
