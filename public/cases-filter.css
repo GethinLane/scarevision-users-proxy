@@ -1,0 +1,319 @@
+/* ─── Toggle Button ─── */
+.filters-toggle-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+}
+
+.filters-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: 9999px;
+  border: 1px solid #d6dde9;
+  background: #ffffff;
+  color: #253551;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.2;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.filters-toggle-btn:hover {
+  background: #f3f4f8;
+  border-color: #c0c8d8;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
+}
+
+/* ─── Overlay / Panel Wrapper ─── */
+.filters-overlay {
+  display: none;
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 2147483646 !important;
+  justify-content: flex-end;
+  align-items: stretch;
+
+  /* ✅ CHANGED: more space on the right so the panel isn’t flush to edge */
+  padding: 80px 48px 24px;
+}
+
+/* Panel that slides in on desktop */
+.filters-panel {
+  background: #ffffff;
+  border-radius: 12px;
+  max-width: 760px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+
+  /* ✅ CHANGED: don’t clip right-side controls */
+  overflow-x: visible;
+  overflow-y: hidden;
+
+  position: relative;
+  z-index: 2147483647;
+}
+
+.filters-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #d6dde9;
+}
+
+.filters-panel-header h2 {
+  font-size: 1.2rem;
+  margin: 0;
+  color: #253551;
+}
+
+.filters-close-btn {
+  border: none;
+  background: transparent;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #6b7280;
+}
+
+/* Scroll if tall (vertical only) */
+.filters-panel .filters-bar {
+  overflow-y: auto;
+  overflow-x: visible; /* ✅ avoid clipping horizontally */
+}
+
+/* When open */
+.filters-overlay.is-open {
+  display: flex;
+}
+
+/* ─── Filters bar ─── */
+.filters-overlay .filters-bar {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  padding: 0;
+}
+
+/* Each filter block (SCOPED to overlay to avoid collision with page CSS) */
+.filters-overlay .filter-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px 16px;
+  border-top: 1px solid #d6dde9;
+  box-sizing: border-box;
+}
+
+.filters-overlay .filter-item:first-child {
+  border-top: none;
+}
+
+/* Top row: heading + info + control */
+.filters-overlay .filter-main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap; /* ✅ keep on one row */
+
+  /* ✅ important so left side can shrink instead of pushing controls off */
+  min-width: 0;
+}
+
+/* Header row: label + info icon */
+.filters-overlay .filter-header-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  /* ✅ allow left side to shrink when needed */
+  min-width: 0;
+}
+
+/* Label text */
+.filters-overlay .filter-header {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #253551;
+  margin: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Right-hand side: switch or chips */
+.filters-overlay .filter-control {
+  display: flex;
+  align-items: center;
+  margin-left: auto; /* push controls right */
+  flex: 0 0 auto;
+}
+
+/* Info icon button */
+.filters-overlay .filter-info-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filters-overlay .filter-info-btn i {
+  font-size: 1rem;
+  color: #a1b0c9;
+}
+
+.filters-overlay .filter-info-btn:hover i {
+  color: #253551;
+}
+
+/* Info text under the whole row */
+.filters-overlay .filter-info {
+  font-size: 1rem;
+  color: #253551;
+  margin: 6px 0 4px;
+  font-weight: 200;
+  max-width: 100%;
+}
+
+/* ── Switch Base Styles ── */
+.filters-overlay .switch {
+  position: relative;
+  display: inline-block;
+  width: 56px;
+  height: 30px;
+}
+
+.filters-overlay .switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.filters-overlay .switch .slider,
+.filters-overlay .switch .slider1 {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transition: background-color 0.4s, transform 0.4s;
+  border-radius: 30px;
+}
+
+.filters-overlay .switch .slider { background-color: #d6dde9; }
+.filters-overlay .switch input:checked + .slider { background-color: #253551; }
+
+.filters-overlay .switch .slider:before,
+.filters-overlay .switch .slider1:before {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  left: 4px;
+  bottom: 4px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.4s;
+}
+
+.filters-overlay .switch input:checked + .slider:before,
+.filters-overlay .switch.custom-toggle input:checked + .slider1:before {
+  transform: translateX(26px);
+}
+
+.filters-overlay .switch.custom-toggle .slider1 { background-color: #d6dde9; }
+.filters-overlay .switch.custom-toggle input:checked + .slider1 { background-color: #253551; }
+
+/* Chips */
+.filters-overlay .chip-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;   /* ✅ no wrapping */
+}
+
+.filters-overlay .chip {
+  padding: 6px 14px;
+  font-size: 0.875rem;
+  border: 1px solid #d6dde9;
+  border-radius: 9999px;
+  background: #fff;
+  color: #253551;
+  cursor: pointer;
+  white-space: nowrap; /* ✅ no wrapping */
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.filters-overlay .chip.active {
+  background: #253551;
+  color: #fff;
+  border-color: #253551;
+}
+
+/* ── Desktop layout inside panel ── */
+@media (min-width: 769px) {
+  /* Panel layout handled by .filters-overlay and .filter-main-row */
+}
+
+/* ── Mobile: inline filters ── */
+@media (max-width: 768px) {
+  .filters-overlay {
+    position: static !important;
+    background: transparent;
+    padding: 0;
+    display: none;
+    z-index: auto !important;
+    margin: 16px 0 !important;
+  }
+
+  .filters-overlay.is-open {
+    display: block;
+  }
+
+  .filters-panel {
+    max-width: none;
+    width: 100%;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    z-index: auto;
+    padding: 8px 0 !important;
+
+    overflow-x: visible; /* ✅ still no clipping */
+    overflow-y: visible;
+  }
+
+  .filters-panel-header {
+    padding: 8px 16px;
+  }
+
+  .filters-close-btn {
+    font-size: 1.1rem;
+  }
+
+  .filters-overlay .filter-item {
+    padding: 12px 16px;
+  }
+
+  .filters-overlay .filter-main-row {
+    gap: 8px;
+  }
+
+  /* Slightly tighten chips on mobile so they fit better side-by-side */
+  .filters-overlay .chip {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+  }
+}
