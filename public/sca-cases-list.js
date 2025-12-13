@@ -406,12 +406,18 @@ e.stopPropagation();
   entry.classList.toggle("is-completed", !isCompleted);
   window.scaCompletedSet?.[isCompleted ? "delete" : "add"](String(caseId));
 
+try {
+  await window.SCAProgress.setComplete(caseId, !isCompleted);
+} catch (err) {
   try {
+    // 🔁 re-initialise session once and retry
+    await window.SCAProgress.init();
     await window.SCAProgress.setComplete(caseId, !isCompleted);
-  } catch (err) {
-    // Roll back on failure
+  } catch (err2) {
+    // ❌ only roll back if retry also fails
     entry.classList.toggle("is-completed", isCompleted);
     window.scaCompletedSet?.[isCompleted ? "add" : "delete"](String(caseId));
-    console.warn("Failed to toggle completion:", err);
+    console.warn("Failed to save completion after retry:", err2 || err);
   }
+}
 });
