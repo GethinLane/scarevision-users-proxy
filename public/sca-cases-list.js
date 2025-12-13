@@ -388,10 +388,14 @@ document.addEventListener("click", async (e) => {
   // Don't interfere with links
   if (e.target.closest("a")) return;
 
-  // Only trigger if click is in the checkbox zone (left side)
-  const rect = entry.getBoundingClientRect();
-  const clickX = e.clientX - rect.left;
-  if (clickX > 24) return;
+// Only toggle if click is inside the left checkbox gutter
+if (e.target.closest("a")) return;
+
+const x = e.clientX - entry.getBoundingClientRect().left;
+if (x > 28) return;
+
+e.preventDefault();
+e.stopPropagation();
 
   const caseId = entry.dataset.caseId;
   if (!caseId || !window.SCAProgress?.setComplete) return;
