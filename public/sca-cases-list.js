@@ -112,7 +112,7 @@ function loadData() {
 function fetchData() {
     const baseId = 'appcfY32cRVRuUJ9i';
     const tableId = 'tbl0zASOWTNNXGayL';
-    const apiKey = '__PASTE_YOUR_PAT_HERE__'; // paste locally
+   const apiKey = 'patIaCiSU4KaGocOw.ca221afed9b6c4bc9a9c2cdad23c2bf95c871886912cb250ea4df3870bd6770e'; // <— your API key
     let allRecords = [], offset = '';
 
     (function nextPage() {
