@@ -379,3 +379,35 @@ window.addEventListener("storage", (e) => {
 // ✅ Also refresh whenever you return to the tab/page (covers same-tab navigation)
 window.addEventListener("focus", scaRefreshProgress);
 window.addEventListener("pageshow", scaRefreshProgress);
+
+// ✅ Toggle completion by clicking the checkbox area
+document.addEventListener("click", async (e) => {
+  const entry = e.target.closest(".case-entry");
+  if (!entry) return;
+
+  // Don't interfere with links
+  if (e.target.closest("a")) return;
+
+  // Only trigger if click is in the checkbox zone (left side)
+  const rect = entry.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  if (clickX > 24) return;
+
+  const caseId = entry.dataset.caseId;
+  if (!caseId || !window.SCAProgress?.setComplete) return;
+
+  const isCompleted = entry.classList.contains("is-completed");
+
+  // Optimistic UI update
+  entry.classList.toggle("is-completed", !isCompleted);
+  window.scaCompletedSet?.[isCompleted ? "delete" : "add"](String(caseId));
+
+  try {
+    await window.SCAProgress.setComplete(caseId, !isCompleted);
+  } catch (err) {
+    // Roll back on failure
+    entry.classList.toggle("is-completed", isCompleted);
+    window.scaCompletedSet?.[isCompleted ? "add" : "delete"](String(caseId));
+    console.warn("Failed to toggle completion:", err);
+  }
+});
