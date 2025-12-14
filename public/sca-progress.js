@@ -1,7 +1,7 @@
 (function () {
   const API_BASE = "https://scarevision-users-proxy.vercel.app";
 
-  // ---- Identity cache helpers (same idea as before) ----
+  // ---- Identity cache helpers (unchanged) ----
   const CACHE_KEY = "sca_member_identity";
   const CACHE_TS_KEY = "sca_member_identity_ts";
   const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
@@ -73,40 +73,71 @@
     }
   }
 
-  // ---- API calls (cookie-based session) ----
-  async function sessionStart(identity) {
-    if (!identity?.id || !identity?.email) throw new Error("Missing identity id/email");
+  // -------------------------------
+  // Single-flight (dedupe) layer
+  // -------------------------------
+  const SF = {
+    init: null,
+    identity: null,           // { identity, source }
+    sessionByUser: new Map(), // key: squarespaceUserId|email -> Promise
+    progress: null,           // Promise for progress-get
+  };
 
-    const r = await fetch(`${API_BASE}/api/session-start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        squarespaceUserId: identity.id,
-        email: identity.email,
-        firstName: identity.firstName,
-        lastName: identity.lastName,
-      }),
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data.ok) throw new Error(data.error || "session-start failed");
-    return data;
+  function userKey(identity) {
+    return `${identity?.id || ""}|${identity?.email || ""}`;
   }
 
-  async function progressGet() {
-    const r = await fetch(`${API_BASE}/api/progress-get`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    });
+  // ---- API calls (cookie-based session) ----
+  function sessionStartOnce(identity) {
+    if (!identity?.id || !identity?.email) {
+      return Promise.reject(new Error("Missing identity id/email"));
+    }
 
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data.ok) throw new Error(data.error || "progress-get failed");
-    return {
-      flagged: Array.isArray(data.flagged) ? data.flagged : [],
-      completed: Array.isArray(data.completed) ? data.completed : [],
-    };
+    const key = userKey(identity);
+    if (SF.sessionByUser.has(key)) return SF.sessionByUser.get(key);
+
+    const p = (async () => {
+      const r = await fetch(`${API_BASE}/api/session-start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }, // has a body, keep this
+        credentials: "include",
+        body: JSON.stringify({
+          squarespaceUserId: identity.id,
+          email: identity.email,
+          firstName: identity.firstName,
+          lastName: identity.lastName,
+        }),
+      });
+
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) throw new Error(data.error || "session-start failed");
+      return data;
+    })();
+
+    SF.sessionByUser.set(key, p);
+    return p;
+  }
+
+  function progressGetOnce() {
+    if (SF.progress) return SF.progress;
+
+    SF.progress = (async () => {
+      // IMPORTANT: no body, so DO NOT set Content-Type (reduces overhead)
+      const r = await fetch(`${API_BASE}/api/progress-get`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) throw new Error(data.error || "progress-get failed");
+
+      return {
+        flagged: Array.isArray(data.flagged) ? data.flagged : [],
+        completed: Array.isArray(data.completed) ? data.completed : [],
+      };
+    })();
+
+    return SF.progress;
   }
 
   async function progressUpdate(caseId, action) {
@@ -119,33 +150,65 @@
 
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data.ok) throw new Error(data.error || "progress-update failed");
-    return {
+
+    // After a write, update the in-memory cached progress so the UI stays consistent
+    const next = {
       flagged: Array.isArray(data.flagged) ? data.flagged : [],
       completed: Array.isArray(data.completed) ? data.completed : [],
     };
+    SF.progress = Promise.resolve(next);
+
+    return next;
   }
 
   // ---- Public API ----
   window.SCAProgress = {
-    // call once on page load
     async init() {
-      const { identity, source } = await getIdentityLiveOrCached();
+      if (SF.init) return SF.init;
 
-      // IMPORTANT: try to start session even if cached (so user gets created/updated)
-      // If Squarespace truly has no usable session anymore, this may fail — caller can handle it.
-      await sessionStart(identity);
+      SF.init = (async () => {
+        // Dedupe identity fetch too (in case init is called twice)
+        if (!SF.identity) SF.identity = getIdentityLiveOrCached();
+        const { identity, source } = await SF.identity;
 
-      const progress = await progressGet();
-      return { identity, source, progress };
+        // Dedupe session + progress
+        await sessionStartOnce(identity);
+        const progress = await progressGetOnce();
+
+        return { identity, source, progress };
+      })();
+
+      return SF.init;
     },
 
-    // if your existing code already has identity, you can do:
     async ensureSession(identity) {
-      return sessionStart(identity);
+      // If init is already running, it will establish session; reuse it.
+      if (SF.init) {
+        try {
+          const res = await SF.init;
+          // If caller passed a different identity (rare), still start session for that user
+          if (identity?.id && identity?.email && userKey(identity) !== userKey(res?.identity)) {
+            return sessionStartOnce(identity);
+          }
+          return true;
+        } catch {
+          // fall through to explicit sessionStartOnce
+        }
+      }
+      return sessionStartOnce(identity);
     },
 
     async getProgress() {
-      return progressGet();
+      // If init is running, progress will be part of it; reuse it.
+      if (SF.init) {
+        try {
+          const res = await SF.init;
+          return res?.progress || progressGetOnce();
+        } catch {
+          // fall through
+        }
+      }
+      return progressGetOnce();
     },
 
     async setFlag(caseId, isFlagged) {
