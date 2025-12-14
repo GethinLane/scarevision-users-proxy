@@ -1,17 +1,10 @@
 import crypto from "crypto";
 
-const ALLOWED_ORIGINS = [
-  "https://www.scarevision.co.uk",
-  "https://scarevision.co.uk"
-];
-
-/* -------------------- helpers -------------------- */
+const ALLOWED_ORIGINS = ["https://www.scarevision.co.uk", "https://scarevision.co.uk"];
 
 function setCors(req, res) {
   const origin = req.headers.origin;
-  if (ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
+  if (ALLOWED_ORIGINS.includes(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -19,7 +12,8 @@ function setCors(req, res) {
   res.setHeader("Access-Control-Max-Age", "86400");
 }
 
-function send(res, status, data) {
+function send(req, res, status, data) {
+  setCors(req, res);
   res.status(status).json(data);
 }
 
@@ -49,95 +43,103 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   return data;
 }
 
-/* -------------------- handler -------------------- */
-
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     setCors(req, res);
     return res.status(204).end();
   }
-
-  if (req.method !== "POST") {
-    setCors(req, res);
-    return send(res, 405, { ok: false, error: "Use POST" });
-  }
+  if (req.method !== "POST") return send(req, res, 405, { ok: false, error: "Use POST" });
 
   try {
-    setCors(req, res);
-
     const sessionSecret = process.env.SCA_SESSION_SECRET;
+    if (!sessionSecret) return send(req, res, 500, { ok: false, error: "Missing SCA_SESSION_SECRET" });
+
     const token = process.env.AIRTABLE_USERS_TOKEN;
     const baseId = process.env.AIRTABLE_USERS_BASE_ID;
     const table = process.env.AIRTABLE_USERS_TABLE;
-
-    if (!sessionSecret || !token || !baseId || !table) {
-      return send(res, 500, { ok: false, error: "Server not configured" });
+    if (!token || !baseId || !table) {
+      return send(req, res, 500, { ok: false, error: "Server not configured" });
     }
 
     const { squarespaceUserId, email, firstName, lastName } = req.body || {};
     if (!squarespaceUserId || !email) {
-      return send(res, 400, { ok: false, error: "Missing squarespaceUserId or email" });
+      return send(req, res, 400, { ok: false, error: "Missing squarespaceUserId or email" });
     }
 
     const uid = String(squarespaceUserId).trim();
     const emailNorm = String(email).trim().toLowerCase();
 
-    /* ------------------------------------------------
-       ✅ ATOMIC UPSERT (NO RACE CONDITIONS)
-       ------------------------------------------------ */
-
-    const fields = {
+    // ✅ IMPORTANT: Do NOT include progress fields here (prevents wiping)
+    const identityFields = {
       SquarespaceUserId: uid,
       Email: emailNorm,
       FirstName: firstName ? String(firstName) : "",
       LastName: lastName ? String(lastName) : "",
       LastSeen: new Date().toISOString(),
-      // safe defaults (won't overwrite if record already exists)
-      FlaggedCasesJson: "[]",
-      CompletedCasesJson: "[]",
     };
 
-    await airtableRequest({
+    // ✅ Atomic upsert (prevents duplicates)
+    const upsertResp = await airtableRequest({
       baseId,
       token,
       path: table,
       method: "PATCH",
       body: {
-        performUpsert: {
-          fieldsToMergeOn: ["SquarespaceUserId"],
-        },
-        records: [{ fields }],
+        performUpsert: { fieldsToMergeOn: ["SquarespaceUserId"] },
+        records: [{ fields: identityFields }],
       },
     });
 
-    /* ------------------------------------------------
-       ✅ CREATE SESSION COOKIE
-       ------------------------------------------------ */
+    const recordId = upsertResp?.records?.[0]?.id;
+    if (!recordId) throw new Error("Upsert ok but no record id returned");
 
+    // ✅ Only set defaults if missing (first-time user)
+    const rec = await airtableRequest({
+      baseId,
+      token,
+      path: `${table}/${recordId}`,
+      method: "GET",
+    });
+
+    const flagged = rec?.fields?.FlaggedCasesJson;
+    const completed = rec?.fields?.CompletedCasesJson;
+
+    const needsDefaults =
+      typeof flagged !== "string" ||
+      typeof completed !== "string";
+
+    if (needsDefaults) {
+      await airtableRequest({
+        baseId,
+        token,
+        path: `${table}/${recordId}`,
+        method: "PATCH",
+        body: {
+          fields: {
+            FlaggedCasesJson: typeof flagged === "string" ? flagged : "[]",
+            CompletedCasesJson: typeof completed === "string" ? completed : "[]",
+          },
+        },
+      });
+    }
+
+    // ✅ Session cookie (14 days)
     const exp = Date.now() + 14 * 24 * 60 * 60 * 1000;
     const payload = JSON.stringify({ uid, exp });
     const sig = sign(payload, sessionSecret);
-    const sessionToken =
-      Buffer.from(payload).toString("base64url") + "." + sig;
+    const sessionToken = Buffer.from(payload).toString("base64url") + "." + sig;
 
-    res.setHeader(
-      "Set-Cookie",
-      [
-        `sca_session=${sessionToken}`,
-        "Path=/",
-        "HttpOnly",
-        "Secure",
-        "SameSite=None",
-        `Max-Age=${14 * 24 * 60 * 60}`,
-      ].join("; ")
-    );
+    res.setHeader("Set-Cookie", [
+      `sca_session=${sessionToken}`,
+      "Path=/",
+      "HttpOnly",
+      "Secure",
+      "SameSite=None",
+      `Max-Age=${14 * 24 * 60 * 60}`
+    ].join("; "));
 
-    return send(res, 200, { ok: true });
-
+    return send(req, res, 200, { ok: true });
   } catch (err) {
-    return send(res, 500, {
-      ok: false,
-      error: err.message || "Server error",
-    });
+    return send(req, res, 500, { ok: false, error: err.message || "Server error" });
   }
 }
