@@ -112,7 +112,7 @@ function safeJsonParse(raw) {
 }
 
 function fetchDataFromVercel() {
-  const url = "https://scarevision-users-proxy.vercel.app/api/cases-list-data";
+  const url = "https://scarevision-airtable-proxy.vercel.app/api/cases-list-data";
 
   fetch(url, { method: "GET" })
     .then(r => r.json())
