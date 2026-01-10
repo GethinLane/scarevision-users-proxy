@@ -569,16 +569,25 @@
   container-type: inline-size;
 }
 
-/* H1 scales with the width of that column (fills the space better) */
-.sca-portal .hero-title{
-  font-size: clamp(42px, 7.2cqw, 78px) !important;
-  line-height: 1.02;
-}
+/* Desktop: scale H1 to "fill" the left column width */
+@media (min-width: 821px){
+  .sca-portal .hero > div:first-child{
+    container-type: inline-size;
+  }
 
-/* Fallback for browsers that don’t support container units */
-@supports not (font-size: 1cqw){
   .sca-portal .hero-title{
-    font-size: clamp(42px, 4.8vw, 72px) !important;
+    font-size: clamp(48px, 11.5cqw, 86px) !important;
+    line-height: 1.02;
   }
 }
+
+/* Fallback if container units aren't supported */
+@supports not (font-size: 1cqw){
+  @media (min-width: 821px){
+    .sca-portal .hero-title{
+      font-size: clamp(48px, 5.4vw, 84px) !important;
+    }
+  }
+}
+
 
