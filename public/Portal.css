@@ -466,4 +466,42 @@
 .sca-portal .portal-bg-tail{
   height: 140px; /* adjust: 80–220 */
 }
+/* ================================
+   Simple frosted-glass (Quick Start card + buttons)
+   ================================ */
+
+/* Frosted glass card */
+.sca-portal .hero-ill{
+  background: rgba(255,255,255,0.10) !important;          /* translucent */
+  border: 1px solid rgba(255,255,255,0.18) !important;    /* soft rim */
+  box-shadow: 0 18px 50px rgba(0,0,0,0.22) !important;    /* lift */
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Frosted glass buttons inside that card */
+.sca-portal .hero-ill a.btn.hero-quick-btn{
+  background: rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.22) !important;
+  color: #ffffff !important;
+
+  box-shadow: 0 10px 26px rgba(0,0,0,0.16) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+/* Hover: slightly brighter + gentle lift */
+.sca-portal .hero-ill a.btn.hero-quick-btn:hover{
+  background: rgba(255,255,255,0.14) !important;
+  border-color: rgba(255,255,255,0.32) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.20) !important;
+}
+
+/* Press */
+.sca-portal .hero-ill a.btn.hero-quick-btn:active{
+  transform: translateY(-1px);
+}
 
