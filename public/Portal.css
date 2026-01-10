@@ -564,4 +564,21 @@
     max-width: 44rem;   /* same measure as subtitle */
   }
 }
+/* Make the left hero text column a sizing container */
+.sca-portal .hero > div:first-child{
+  container-type: inline-size;
+}
+
+/* H1 scales with the width of that column (fills the space better) */
+.sca-portal .hero-title{
+  font-size: clamp(42px, 7.2cqw, 78px) !important;
+  line-height: 1.02;
+}
+
+/* Fallback for browsers that don’t support container units */
+@supports not (font-size: 1cqw){
+  .sca-portal .hero-title{
+    font-size: clamp(42px, 4.8vw, 72px) !important;
+  }
+}
 
