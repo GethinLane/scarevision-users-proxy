@@ -426,7 +426,7 @@
   position: absolute;
   inset: -120px;
   background: radial-gradient(
-    circle at 65% 45%,              /* centre-ish */
+    circle at 85% 45%,              /* centre-ish */
     rgba(79,124,255,0.12) 0%,       /* soft blue glow */
     rgba(79,124,255,0.06) 22%,
     rgba(79,124,255,0.00) 55%
