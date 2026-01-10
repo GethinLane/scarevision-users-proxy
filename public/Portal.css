@@ -589,5 +589,17 @@
     }
   }
 }
+/* Desktop: keep H1 on one line + align it to the same measure as the paragraph */
+@media (min-width: 821px){
+  .sca-portal .hero > div:first-child{
+    max-width: 44rem;          /* same measure as your subtitle */
+  }
+
+  .sca-portal .hero-title{
+    white-space: nowrap;       /* prevents wrapping on desktop */
+    font-size: clamp(50px, 4.6vw, 68px) !important; /* grows but capped */
+    letter-spacing: normal !important;
+  }
+}
 
 
