@@ -559,47 +559,6 @@
 .sca-portal .hero-ill a.btn.hero-quick-btn:hover::after{
   opacity: 0.62;
 }
-@media (min-width: 821px){
-  .sca-portal .hero > div:first-child{
-    max-width: 44rem;   /* same measure as subtitle */
-  }
-}
-/* Make the left hero text column a sizing container */
-.sca-portal .hero > div:first-child{
-  container-type: inline-size;
-}
 
-/* Desktop: scale H1 to "fill" the left column width */
-@media (min-width: 821px){
-  .sca-portal .hero > div:first-child{
-    container-type: inline-size;
-  }
-
-  .sca-portal .hero-title{
-    font-size: clamp(48px, 11.5cqw, 86px) !important;
-    line-height: 1.02;
-  }
-}
-
-/* Fallback if container units aren't supported */
-@supports not (font-size: 1cqw){
-  @media (min-width: 821px){
-    .sca-portal .hero-title{
-      font-size: clamp(48px, 5.4vw, 84px) !important;
-    }
-  }
-}
-/* Desktop: keep H1 on one line + align it to the same measure as the paragraph */
-@media (min-width: 821px){
-  .sca-portal .hero > div:first-child{
-    max-width: 44rem;          /* same measure as your subtitle */
-  }
-
-  .sca-portal .hero-title{
-    white-space: nowrap;       /* prevents wrapping on desktop */
-    font-size: clamp(50px, 4.6vw, 68px) !important; /* grows but capped */
-    letter-spacing: normal !important;
-  }
-}
 
 
