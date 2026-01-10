@@ -458,7 +458,7 @@
 /* Make hero H1 match Squarespace-style spacing */
 .sca-portal .hero-title{
   letter-spacing: normal !important;   /* or 0 */
-  
+}  
 .sca-portal .page{
   padding-bottom: 96px !important; /* was ~56px */
 }
