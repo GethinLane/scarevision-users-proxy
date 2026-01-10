@@ -559,4 +559,9 @@
 .sca-portal .hero-ill a.btn.hero-quick-btn:hover::after{
   opacity: 0.62;
 }
+@media (min-width: 821px){
+  .sca-portal .hero > div:first-child{
+    max-width: 44rem;   /* same measure as subtitle */
+  }
+}
 
