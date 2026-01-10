@@ -466,23 +466,63 @@
 .sca-portal .portal-bg-tail{
   height: 140px; /* adjust: 80–220 */
 }
-/* ===== Apple-glass hover for Quick Start buttons ===== */
-.sca-portal .hero-quick-btn{
+
+   /* =========================================
+   Apple-glass Quick Start card + buttons
+   (high specificity so it overrides hero btn styles)
+   ========================================= */
+
+/* QUICK START CARD: glass panel */
+.sca-portal .hero-ill{
+  background: rgba(255,255,255,0.10) !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.28) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.30);
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 10px 26px rgba(0,0,0,0.18);
-  transform: translateY(0);
 }
 
-/* subtle “glass sheen” streak */
-.sca-portal .hero-quick-btn::before{
+/* glossy top highlight */
+.sca-portal .hero-ill::after{
   content:"";
-  position: absolute;
-  inset: -2px;
+  position:absolute;
+  left: 10px;
+  right: 10px;
+  top: 10px;
+  height: 42%;
+  border-radius: 20px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.22),
+    rgba(255,255,255,0.06),
+    rgba(255,255,255,0.00)
+  );
+  pointer-events:none;
+  opacity: 0.85;
+}
+
+/* QUICK START BUTTONS: glass buttons */
+.sca-portal .hero-ill .btn.hero-quick-btn{
+  position: relative;
+  overflow: hidden;
+
+  background: rgba(255,255,255,0.07) !important;
+  border: 1px solid rgba(255,255,255,0.28) !important;
+  color: #ffffff !important;
+
+  box-shadow: 0 10px 26px rgba(0,0,0,0.18) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  transform: translateY(0);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+/* sheen streak */
+.sca-portal .hero-ill .btn.hero-quick-btn::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
   background: linear-gradient(
     120deg,
     rgba(255,255,255,0.55) 0%,
@@ -490,27 +530,39 @@
     rgba(255,255,255,0.00) 55%
   );
   opacity: 0;
-  transform: translateX(-20%) translateY(-10%);
-  transition: opacity 200ms ease, transform 220ms ease;
-  pointer-events: none;
+  transform: translateX(-18%) translateY(-10%);
+  transition: opacity 180ms ease, transform 200ms ease;
+  pointer-events:none;
 }
 
-.sca-portal .hero-quick-btn:hover{
-  background: rgba(255,255,255,0.14);
-  border-color: rgba(255,255,255,0.55);
+/* hover = “Apple glass” lift + brighter rim */
+.sca-portal .hero-ill .btn.hero-quick-btn:hover{
+  background: rgba(255,255,255,0.14) !important;
+  border-color: rgba(255,255,255,0.55) !important;
   box-shadow:
-    0 14px 34px rgba(0,0,0,0.22),
-    0 0 0 1px rgba(255,255,255,0.10) inset;
+    0 16px 36px rgba(0,0,0,0.22),
+    0 0 0 1px rgba(255,255,255,0.10) inset !important;
   transform: translateY(-2px);
 }
 
-.sca-portal .hero-quick-btn:hover::before{
-  opacity: 0.85;
+.sca-portal .hero-ill .btn.hero-quick-btn:hover::before{
+  opacity: 0.90;
   transform: translateX(0%) translateY(0%);
 }
 
-/* nicer active press */
-.sca-portal .hero-quick-btn:active{
+/* press */
+.sca-portal .hero-ill .btn.hero-quick-btn:active{
   transform: translateY(0px);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.18) !important;
 }
+
+/* Fallback if backdrop-filter not supported */
+@supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))){
+  .sca-portal .hero-ill{
+    background: rgba(255,255,255,0.14) !important;
+  }
+  .sca-portal .hero-ill .btn.hero-quick-btn{
+    background: rgba(255,255,255,0.12) !important;
+  }
+}
+
