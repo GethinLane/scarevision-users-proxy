@@ -64,7 +64,7 @@
   line-height: 1.05;
   letter-spacing: -0.03em;
   color: #fff;
-  font-size: clamp(36px, 4vw, 60px);
+  font-size: clamp(36px, 4vw, 70px);
 }
 
 .sca-portal .hero-subtitle{
