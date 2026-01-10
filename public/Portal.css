@@ -565,4 +565,126 @@
     background: rgba(255,255,255,0.12) !important;
   }
 }
+/* ================================
+   Liquid/Apple Glass — Quick Start card + buttons
+   Paste at VERY END of CSS
+   ================================ */
+
+/* Stop the old sheen layer from muddying the new glass */
+.sca-portal .hero-ill::before{
+  opacity: 0 !important;
+}
+
+/* QUICK START CARD = layered glass */
+.sca-portal .hero-ill{
+  position: relative;
+  overflow: hidden;
+
+  /* base “glass tint” */
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.14),
+    rgba(255,255,255,0.07)
+  ) !important;
+
+  border: 1px solid rgba(255,255,255,0.18) !important;
+
+  /* depth + inner strokes (this is the "one inside another" look) */
+  box-shadow:
+    0 28px 80px rgba(0,0,0,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.28),     /* top inner highlight */
+    inset 0 0 0 1px rgba(255,255,255,0.10) !important; /* inner rim */
+
+  backdrop-filter: blur(16px) saturate(155%);
+  -webkit-backdrop-filter: blur(16px) saturate(155%);
+}
+
+/* A soft “specular” highlight sweep inside the card */
+.sca-portal .hero-ill::after{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255,255,255,0.22), transparent 45%),
+    linear-gradient(120deg, rgba(255,255,255,0.18), rgba(255,255,255,0.00) 55%);
+  opacity: 0.75;
+  pointer-events:none;
+}
+
+/* QUICK START BUTTONS = smaller glass slabs */
+.sca-portal .hero-ill a.btn.hero-quick-btn{
+  position: relative;
+  overflow: hidden;
+
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.10),
+    rgba(255,255,255,0.05)
+  ) !important;
+
+  border: 1px solid rgba(255,255,255,0.20) !important;
+  color: #fff !important;
+
+  box-shadow:
+    0 12px 30px rgba(0,0,0,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 0 0 1px rgba(255,255,255,0.08) !important;
+
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+
+  transform: translateY(0);
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+/* tiny glossy streak that appears more on hover */
+.sca-portal .hero-ill a.btn.hero-quick-btn::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background: linear-gradient(
+    120deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(255,255,255,0.14) 22%,
+    rgba(255,255,255,0.00) 55%
+  );
+  opacity: 0.18;
+  transform: translateX(-12%) translateY(-10%);
+  transition: opacity 180ms ease, transform 220ms ease;
+  pointer-events:none;
+}
+
+/* Apple-ish hover: brighter rim + lift + “glass lights up” */
+.sca-portal .hero-ill a.btn.hero-quick-btn:hover{
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.16),
+    rgba(255,255,255,0.08)
+  ) !important;
+
+  border-color: rgba(255,255,255,0.38) !important;
+
+  box-shadow:
+    0 18px 44px rgba(0,0,0,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.30),
+    inset 0 0 0 1px rgba(255,255,255,0.14) !important;
+
+  transform: translateY(-2px);
+}
+
+.sca-portal .hero-ill a.btn.hero-quick-btn:hover::before{
+  opacity: 0.42;
+  transform: translateX(0%) translateY(0%);
+}
+
+/* Press */
+.sca-portal .hero-ill a.btn.hero-quick-btn:active{
+  transform: translateY(-1px);
+}
+
+/* Fallback if backdrop-filter unsupported */
+@supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))){
+  .sca-portal .hero-ill{ background: rgba(255,255,255,0.14) !important; }
+  .sca-portal .hero-ill a.btn.hero-quick-btn{ background: rgba(255,255,255,0.12) !important; }
+}
 
