@@ -504,4 +504,59 @@
 .sca-portal .hero-ill a.btn.hero-quick-btn:active{
   transform: translateY(-1px);
 }
+/* ================================
+   Subtle glass sheen overlay (card + buttons)
+   ================================ */
+
+/* Make sure overlays sit correctly */
+.sca-portal .hero-ill,
+.sca-portal .hero-ill a.btn.hero-quick-btn{
+  position: relative;
+  overflow: hidden;
+}
+
+/* Sheen on the Quick Start card */
+.sca-portal .hero-ill::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.16) 0%,
+    rgba(255,255,255,0.06) 25%,
+    rgba(255,255,255,0.00) 60%
+  );
+  opacity: 0.55;          /* keep subtle */
+  pointer-events:none;
+}
+
+/* Extra subtle vignette depth (barely there) */
+.sca-portal .hero-ill::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(circle at 70% 30%, rgba(255,255,255,0.10), transparent 55%);
+  opacity: 0.30;
+  pointer-events:none;
+}
+
+/* Sheen on the buttons */
+.sca-portal .hero-ill a.btn.hero-quick-btn::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.14) 0%,
+    rgba(255,255,255,0.05) 32%,
+    rgba(255,255,255,0.00) 70%
+  );
+  opacity: 0.45;
+  pointer-events:none;
+}
+
+/* Slightly stronger sheen on hover (still subtle) */
+.sca-portal .hero-ill a.btn.hero-quick-btn:hover::after{
+  opacity: 0.62;
+}
 
