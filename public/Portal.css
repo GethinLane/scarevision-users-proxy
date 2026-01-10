@@ -526,7 +526,7 @@
     rgba(255,255,255,0.06) 25%,
     rgba(255,255,255,0.00) 60%
   );
-  opacity: 0.55;          /* keep subtle */
+  opacity: 0.45;          /* keep subtle */
   pointer-events:none;
 }
 
@@ -551,7 +551,7 @@
     rgba(255,255,255,0.05) 32%,
     rgba(255,255,255,0.00) 70%
   );
-  opacity: 0.45;
+  opacity: 0.35;
   pointer-events:none;
 }
 
