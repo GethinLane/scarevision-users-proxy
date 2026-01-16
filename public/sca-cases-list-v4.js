@@ -155,25 +155,18 @@ backdrop.innerHTML = `
 
       // Log in again action
       backdrop.querySelector("#scaAuthLoginBtn")?.addEventListener("click", () => {
-        if (!openSquarespaceAccountOverlay()) {
-          alert("Please use the Account / Log in button in the site header.");
-        }
-      });
+  // ✅ close our modal so Squarespace overlay isn't behind it
+  close();
+
+  if (!openSquarespaceAccountOverlay()) {
+    alert("Please use the Account / Log in button in the site header.");
+  }
+});
+
 
       // Expose open/close hooks on the backdrop for the show() function
       backdrop.__scaOpen = open;
       backdrop.__scaClose = close;
-
-      backdrop.querySelector("#scaAuthRetryBtn").addEventListener("click", async () => {
-        const fn = window.__scaAuthRetry;
-        if (!fn) return;
-        try {
-          await fn();
-          close();
-        } catch (e) {
-          console.warn("Retry failed:", e?.message || e);
-        }
-      });
     }
 
     function isAuthError(err) {
