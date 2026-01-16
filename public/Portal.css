@@ -658,7 +658,7 @@
   border-radius: inherit;
   pointer-events: none;
   
-  opacity: 0.35; /* try 0.25–0.85 */
+  opacity: 0.6; /* try 0.25–0.85 */
 
 
   /* rim + inner sparkle */
@@ -674,3 +674,36 @@
   z-index: 3;
 }
 
+/* layer 3: specular rim shaped like iOS liquid glass */
+.sca-portal .hero-ill .lg-specular{
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+
+  opacity: 0.55; /* master strength knob */
+
+  background:
+    /* TOP-LEFT strong rim */
+    radial-gradient(140% 120% at 18% 18%,
+      rgba(255,255,255,0.70) 0%,
+      rgba(255,255,255,0.28) 18%,
+      rgba(255,255,255,0.08) 34%,
+      rgba(255,255,255,0.00) 52%),
+
+    /* BOTTOM-RIGHT secondary rim */
+    radial-gradient(150% 130% at 82% 86%,
+      rgba(255,255,255,0.38) 0%,
+      rgba(255,255,255,0.14) 22%,
+      rgba(255,255,255,0.00) 48%),
+
+    /* VERY subtle overall edge ring (kept low so sides feel “absent”) */
+    radial-gradient(120% 120% at 50% 50%,
+      rgba(255,255,255,0.00) 60%,
+      rgba(255,255,255,0.08) 78%,
+      rgba(255,255,255,0.00) 100%);
+
+  /* makes it read like light, not paint */
+  mix-blend-mode: screen;
+}
