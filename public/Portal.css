@@ -646,7 +646,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: rgba(255,255,255,0.01); /* tweak 0.06–0.12 */
+  background: rgba(255,255,255,0.0); /* tweak 0.06–0.12 */
   pointer-events: none;
 }
 
@@ -671,71 +671,3 @@
   z-index: 3;
 }
 
-/* =========================================
-   Softer liquid-glass buttons (subtle rim)
-   ========================================= */
-
-.sca-portal .hero-ill a.btn.hero-quick-btn{
-  /* keep your current frosted button base */
-  background: rgba(255,255,255,0.08) !important;
-  border: 1px solid rgba(255,255,255,0.20) !important;
-
-  box-shadow:
-    0 10px 26px rgba(0,0,0,0.16),
-    inset 1px 1px 0 rgba(255,255,255,0.22),
-    inset 0 -1px 0 rgba(255,255,255,0.08) !important;
-
-  position: relative;
-  overflow: hidden;
-}
-
-/* Thin rim ring (much lighter + thinner) */
-.sca-portal .hero-ill a.btn.hero-quick-btn::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius: inherit;
-  pointer-events:none;
-
-  padding: 1px;                 /* was 2px */
-  opacity: 0.45;                /* was ~0.9 */
-  mix-blend-mode: screen;
-
-  background:
-    linear-gradient(180deg,
-      rgba(255,255,255,0.22) 0%,
-      rgba(255,255,255,0.06) 32%,
-      rgba(255,255,255,0.00) 70%),
-    radial-gradient(120% 120% at 20% 25%,
-      rgba(255,255,255,0.10) 0%,
-      rgba(255,255,255,0.00) 55%),
-    radial-gradient(120% 120% at 80% 25%,
-      rgba(255,255,255,0.08) 0%,
-      rgba(255,255,255,0.00) 58%);
-
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-}
-
-/* Subtle specular sweep */
-.sca-portal .hero-ill a.btn.hero-quick-btn::after{
-  content:"";
-  position:absolute;
-  inset:-45%;
-  border-radius: inherit;
-  pointer-events:none;
-
-  background: linear-gradient(
-    135deg,
-    rgba(255,255,255,0.10) 0%,
-    rgba(255,255,255,0.03) 24%,
-    rgba(255,255,255,0.00) 48%
-  );
-
-  opacity: 0.30;                /* was ~0.55 */
-  filter: blur(2.2px);          /* softer */
-  mix-blend-mode: screen;
-}
