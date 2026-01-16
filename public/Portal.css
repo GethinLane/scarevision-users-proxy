@@ -560,5 +560,49 @@
   opacity: 0.62;
 }
 
+/* =========================================
+   Desktop-only bloom locked behind Quick Start
+   (mobile bloom unchanged)
+   ========================================= */
+
+/* DESKTOP: disable the old percentage-based bloom */
+@media (min-width: 821px){
+  .sca-portal .hero-band::before{
+    content: none !important;
+  }
+
+  /* Anchor bloom to the Quick Start column */
+  .sca-portal .hero-ill-wrapper{
+    position: relative;
+  }
+
+  /* The bloom itself (moves with the card because it's attached to it) */
+  .sca-portal .hero-ill-wrapper::before{
+    content:"";
+    position: absolute;
+
+    /* Fixed pixel placement behind the card */
+    width: 720px;
+    height: 720px;
+    right: -220px;   /* tweak */
+    top: -200px;     /* tweak */
+
+    background: radial-gradient(
+      circle,
+      rgba(79,124,255,0.16) 0%,
+      rgba(79,124,255,0.08) 22%,
+      rgba(79,124,255,0.00) 55%
+    );
+
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ensure the card is above the bloom */
+  .sca-portal .hero-ill{
+    position: relative;
+    z-index: 1;
+  }
+}
 
 
