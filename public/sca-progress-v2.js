@@ -1,11 +1,15 @@
 (function () {
-  const API_BASE = "https://scarevision-users-proxy.vercel.app"; // keep, or swap to your domain later
+  console.log("[SCAProgress v2] loaded build:", "2026-01-16-a");
 
-  const ENDPOINTS = {
+const API_BASE = "https://scarevision-users-proxy.vercel.app";
+const ENDPOINTS = {
   sessionStart: `${API_BASE}/api/session-start-v2`,
   progressGet: `${API_BASE}/api/progress-get-v2`,
   progressUpdate: `${API_BASE}/api/progress-update-v2`,
 };
+
+console.log("[SCAProgress v2] endpoints:", ENDPOINTS);
+window.SCAProgressVersion = "v2-2026-01-16-a";
 
   // ---- Identity cache helpers (unchanged) ----
   const CACHE_KEY = "sca_member_identity";
