@@ -123,7 +123,7 @@ backdrop.innerHTML = `
   </div>
 
   <div class="scaAuthNote">
-    If this keeps happening (especially on Safari), it can be cookie/session restrictions. Logging in again refreshes access. Please ensure you are not browsing in 'incognito' mode.
+   
   </div>
 </div>
 `;
