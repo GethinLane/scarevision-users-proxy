@@ -8,7 +8,6 @@ function setCors(req, res) {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  // ✅ allow Authorization for Bearer tokens
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
 }
@@ -45,7 +44,6 @@ function safeEqual(a, b) {
   }
 }
 
-// ✅ NEW: Bearer header first, cookie fallback
 function readSessionToken(req) {
   const auth = req.headers.authorization || "";
   if (auth.startsWith("Bearer ")) return auth.slice(7).trim();
@@ -118,6 +116,7 @@ export default async function handler(req, res) {
     setCors(req, res);
     return res.status(204).end();
   }
+
   if (req.method !== "POST") return send(req, res, 405, { ok: false, error: "Use POST" });
 
   try {
