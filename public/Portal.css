@@ -674,3 +674,50 @@
   z-index: 3;
 }
 
+/* =========================================================
+   HERO CARD: Liquid-glass "masked rim" (drop-in override)
+   - Stronger rim at top-left + bottom-right
+   - Very quiet on the sides
+   - No surface bloom (rim only)
+   ========================================================= */
+
+.sca-portal .hero-ill .lg-specular{
+  /* keep your layer positioning; just override the look */
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+
+  /* Rim thickness + overall strength */
+  padding: 2px;          /* try 1px–3px */
+  opacity: 0.38;         /* try 0.25–0.55 */
+  mix-blend-mode: screen;
+
+  /* Paint light ONLY on the rim ring */
+  background:
+    /* TOP-LEFT hotspot */
+    radial-gradient(120% 120% at 12% 14%,
+      rgba(255,255,255,0.95) 0%,
+      rgba(255,255,255,0.35) 18%,
+      rgba(255,255,255,0.00) 46%),
+
+    /* BOTTOM-RIGHT hotspot */
+    radial-gradient(130% 130% at 88% 90%,
+      rgba(255,255,255,0.55) 0%,
+      rgba(255,255,255,0.18) 22%,
+      rgba(255,255,255,0.00) 52%),
+
+    /* very subtle diagonal bias (keeps sides subdued) */
+    linear-gradient(135deg,
+      rgba(255,255,255,0.22) 0%,
+      rgba(255,255,255,0.00) 42%,
+      rgba(255,255,255,0.14) 100%);
+
+  /* MASK: show this layer only as a thin rim ring */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+}
