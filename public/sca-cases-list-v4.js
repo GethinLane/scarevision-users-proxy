@@ -115,7 +115,7 @@
   <div class="scaAuthBody" id="scaAuthBody">
     To save your progress, please <b>log in again</b> to confirm your account.
   </div>
-  <div class="scaAuthBtns"><b>Log in again</b></button>
+  <div class="scaAuthBtns">Log in again</button>
     <button class="scaBtn" type="button" id="scaAuthDismissBtn">Not now</button>
   </div>
   <div class="scaAuthNote">
