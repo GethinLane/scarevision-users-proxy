@@ -670,3 +670,85 @@
   position: relative;
   z-index: 3;
 }
+
+/* =========================================
+   Liquid-glass-ish buttons (no SVG filter)
+   ========================================= */
+
+.sca-portal .hero-ill a.btn.hero-quick-btn{
+  position: relative;
+  overflow: hidden;
+
+  /* keep your existing frosted base */
+  background: rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.24) !important;
+  color: #fff !important;
+
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+
+  /* “bubble rim” */
+  box-shadow:
+    0 10px 26px rgba(0,0,0,0.16),
+    inset 1px 1px 0 rgba(255,255,255,0.45),
+    inset 0 -1px 0 rgba(255,255,255,0.14) !important;
+}
+
+/* Edge refraction cue: thin rim ring (masked) */
+.sca-portal .hero-ill a.btn.hero-quick-btn::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  pointer-events:none;
+
+  padding: 2px; /* ring thickness */
+
+  background:
+    linear-gradient(180deg,
+      rgba(255,255,255,0.55) 0%,
+      rgba(255,255,255,0.14) 28%,
+      rgba(255,255,255,0.00) 70%),
+    radial-gradient(120% 120% at 15% 25%,
+      rgba(255,255,255,0.22) 0%,
+      rgba(255,255,255,0.00) 55%),
+    radial-gradient(120% 120% at 85% 25%,
+      rgba(255,255,255,0.16) 0%,
+      rgba(255,255,255,0.00) 58%);
+
+  opacity: 0.9;
+  mix-blend-mode: screen;
+
+  /* mask so it only shows as a ring */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+}
+
+/* Specular sweep (subtle) */
+.sca-portal .hero-ill a.btn.hero-quick-btn::after{
+  content:"";
+  position:absolute;
+  inset:-35%;
+  border-radius: inherit;
+  pointer-events:none;
+
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.18) 0%,
+    rgba(255,255,255,0.06) 22%,
+    rgba(255,255,255,0.00) 46%
+  );
+
+  opacity: 0.55;
+  filter: blur(1.5px);
+  mix-blend-mode: screen;
+}
+
+.sca-portal .hero-ill a.btn.hero-quick-btn:hover{
+  background: rgba(255,255,255,0.12) !important;
+  border-color: rgba(255,255,255,0.32) !important;
+  transform: translateY(-2px);
+}
