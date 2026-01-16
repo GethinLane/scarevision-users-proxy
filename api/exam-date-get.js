@@ -8,7 +8,8 @@ function setCors(req, res) {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  // ✅ allow Authorization for Bearer tokens
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
 }
 
@@ -19,35 +20,69 @@ function send(req, res, status, data) {
 
 function parseCookies(req) {
   const header = req.headers.cookie || "";
-  return header.split(";").map(v => v.split("=")).reduce((acc, [k, v]) => {
-    if (!k) return acc;
-    acc[k.trim()] = decodeURIComponent(v || "");
-    return acc;
-  }, {});
+  return header
+    .split(";")
+    .map((v) => v.split("="))
+    .reduce((acc, [k, v]) => {
+      if (!k) return acc;
+      acc[k.trim()] = decodeURIComponent(v || "");
+      return acc;
+    }, {});
 }
 
 function sign(payload, secret) {
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 
+function safeEqual(a, b) {
+  try {
+    const ab = Buffer.from(String(a));
+    const bb = Buffer.from(String(b));
+    if (ab.length !== bb.length) return false;
+    return crypto.timingSafeEqual(ab, bb);
+  } catch {
+    return false;
+  }
+}
+
+// ✅ NEW: Bearer header first, cookie fallback
+function readSessionToken(req) {
+  const auth = req.headers.authorization || "";
+  if (auth.startsWith("Bearer ")) return auth.slice(7).trim();
+
+  const cookies = parseCookies(req);
+  return cookies["sca_session"] || "";
+}
+
 function verifySession(req) {
   const secret = process.env.SCA_SESSION_SECRET;
   if (!secret) throw new Error("Missing SCA_SESSION_SECRET");
 
-  const cookies = parseCookies(req);
-  const token = cookies["sca_session"];
+  const token = readSessionToken(req);
   if (!token) throw new Error("No session");
 
   const [b64, sig] = token.split(".");
   if (!b64 || !sig) throw new Error("Bad token");
 
-  const payload = Buffer.from(b64, "base64url").toString("utf8");
-  const expected = sign(payload, secret);
-  if (expected !== sig) throw new Error("Invalid token");
+  let payload = "";
+  try {
+    payload = Buffer.from(b64, "base64url").toString("utf8");
+  } catch {
+    throw new Error("Bad token");
+  }
 
-  const data = JSON.parse(payload);
+  const expected = sign(payload, secret);
+  if (!safeEqual(expected, sig)) throw new Error("Invalid token");
+
+  let data;
+  try {
+    data = JSON.parse(payload);
+  } catch {
+    throw new Error("Invalid payload");
+  }
+
   if (!data?.uid || !data?.exp) throw new Error("Invalid payload");
-  if (Date.now() > data.exp) throw new Error("Session expired");
+  if (Date.now() > Number(data.exp)) throw new Error("Session expired");
 
   return String(data.uid);
 }
@@ -65,7 +100,11 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
 
   const text = await r.text();
   let data;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
 
   if (!r.ok) {
     const msg = data?.error?.message || `Airtable error (${r.status})`;
@@ -106,8 +145,6 @@ export default async function handler(req, res) {
     const record = found.records[0];
     const examDate = record.fields?.ExamDate ?? null;
 
-    // Airtable date field may come back as "YYYY-MM-DD" or ISO depending on config.
-    // We just pass it through.
     return send(req, res, 200, { ok: true, examDate });
   } catch (err) {
     return send(req, res, 401, { ok: false, error: err.message || "Unauthorized" });
