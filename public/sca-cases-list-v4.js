@@ -106,23 +106,28 @@
       backdrop.id = "scaAuthModalBackdrop";
       backdrop.hidden = true;
 
-            backdrop.innerHTML = `
+backdrop.innerHTML = `
 <div id="scaAuthModal" role="dialog" aria-modal="true" aria-labelledby="scaAuthTitle">
   <div class="scaAuthHead">
-    <h4 class="scaAuthTitle" id="scaAuthTitle">Please log in again</h4>
+    <h3 class="scaAuthTitle" id="scaAuthTitle">Please log in again</h3>
     <button class="scaAuthClose" type="button" aria-label="Close">×</button>
   </div>
+
   <div class="scaAuthBody" id="scaAuthBody">
     To save your progress, please <b>log in again</b> to confirm your account.
   </div>
-  <div class="scaAuthBtns"><button>Log in again</button>
+
+  <div class="scaAuthBtns">
+    <button class="scaBtn scaBtnPrimary" type="button" id="scaAuthLoginBtn">Log in again</button>
     <button class="scaBtn" type="button" id="scaAuthDismissBtn">Not now</button>
   </div>
+
   <div class="scaAuthNote">
     If this keeps happening (especially on Safari), it can be cookie/session restrictions. Logging in again refreshes access. Please ensure you are not browsing in 'incognito' mode.
   </div>
 </div>
 `;
+
 
       document.body.appendChild(backdrop);
 
