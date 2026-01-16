@@ -672,29 +672,24 @@
 }
 
 /* =========================================
-   Liquid-glass-ish buttons (no SVG filter)
+   Softer liquid-glass buttons (subtle rim)
    ========================================= */
 
 .sca-portal .hero-ill a.btn.hero-quick-btn{
-  position: relative;
-  overflow: hidden;
-
-  /* keep your existing frosted base */
+  /* keep your current frosted button base */
   background: rgba(255,255,255,0.08) !important;
-  border: 1px solid rgba(255,255,255,0.24) !important;
-  color: #fff !important;
+  border: 1px solid rgba(255,255,255,0.20) !important;
 
-  backdrop-filter: blur(14px) saturate(1.25);
-  -webkit-backdrop-filter: blur(14px) saturate(1.25);
-
-  /* “bubble rim” */
   box-shadow:
     0 10px 26px rgba(0,0,0,0.16),
-    inset 1px 1px 0 rgba(255,255,255,0.45),
-    inset 0 -1px 0 rgba(255,255,255,0.14) !important;
+    inset 1px 1px 0 rgba(255,255,255,0.22),
+    inset 0 -1px 0 rgba(255,255,255,0.08) !important;
+
+  position: relative;
+  overflow: hidden;
 }
 
-/* Edge refraction cue: thin rim ring (masked) */
+/* Thin rim ring (much lighter + thinner) */
 .sca-portal .hero-ill a.btn.hero-quick-btn::before{
   content:"";
   position:absolute;
@@ -702,24 +697,22 @@
   border-radius: inherit;
   pointer-events:none;
 
-  padding: 2px; /* ring thickness */
+  padding: 1px;                 /* was 2px */
+  opacity: 0.45;                /* was ~0.9 */
+  mix-blend-mode: screen;
 
   background:
     linear-gradient(180deg,
-      rgba(255,255,255,0.55) 0%,
-      rgba(255,255,255,0.14) 28%,
-      rgba(255,255,255,0.00) 70%),
-    radial-gradient(120% 120% at 15% 25%,
       rgba(255,255,255,0.22) 0%,
+      rgba(255,255,255,0.06) 32%,
+      rgba(255,255,255,0.00) 70%),
+    radial-gradient(120% 120% at 20% 25%,
+      rgba(255,255,255,0.10) 0%,
       rgba(255,255,255,0.00) 55%),
-    radial-gradient(120% 120% at 85% 25%,
-      rgba(255,255,255,0.16) 0%,
+    radial-gradient(120% 120% at 80% 25%,
+      rgba(255,255,255,0.08) 0%,
       rgba(255,255,255,0.00) 58%);
 
-  opacity: 0.9;
-  mix-blend-mode: screen;
-
-  /* mask so it only shows as a ring */
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -727,28 +720,22 @@
           mask-composite: exclude;
 }
 
-/* Specular sweep (subtle) */
+/* Subtle specular sweep */
 .sca-portal .hero-ill a.btn.hero-quick-btn::after{
   content:"";
   position:absolute;
-  inset:-35%;
+  inset:-45%;
   border-radius: inherit;
   pointer-events:none;
 
   background: linear-gradient(
     135deg,
-    rgba(255,255,255,0.18) 0%,
-    rgba(255,255,255,0.06) 22%,
-    rgba(255,255,255,0.00) 46%
+    rgba(255,255,255,0.10) 0%,
+    rgba(255,255,255,0.03) 24%,
+    rgba(255,255,255,0.00) 48%
   );
 
-  opacity: 0.55;
-  filter: blur(1.5px);
+  opacity: 0.30;                /* was ~0.55 */
+  filter: blur(2.2px);          /* softer */
   mix-blend-mode: screen;
-}
-
-.sca-portal .hero-ill a.btn.hero-quick-btn:hover{
-  background: rgba(255,255,255,0.12) !important;
-  border-color: rgba(255,255,255,0.32) !important;
-  transform: translateY(-2px);
 }
