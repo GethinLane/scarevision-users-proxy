@@ -87,7 +87,7 @@
   padding:0 18px 18px;
 }
 #scaAuthModal .scaBtn{
-  border-radius:12px; padding:10px 14px; font-weight:600; cursor:pointer;
+  border-radius:12px; padding:10px 14px; font-weight:800; cursor:pointer;
   border:1px solid rgba(148,163,184,.35); background:#fff; color:#1c2b4a;
 }
 #scaAuthModal .scaBtnPrimary{
