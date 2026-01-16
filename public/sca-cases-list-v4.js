@@ -95,7 +95,7 @@
       backdrop.id = "scaAuthModalBackdrop";
       backdrop.hidden = true;
 
-      backdrop.innerHTML = `
+            backdrop.innerHTML = `
 <div id="scaAuthModal" role="dialog" aria-modal="true" aria-labelledby="scaAuthTitle">
   <div class="scaAuthHead">
     <h3 class="scaAuthTitle" id="scaAuthTitle">Please log in again</h3>
@@ -106,7 +106,6 @@
   </div>
   <div class="scaAuthBtns">
     <button class="scaBtn scaBtnPrimary" type="button" id="scaAuthLoginBtn">Log in again</button>
-    <button class="scaBtn" type="button" id="scaAuthRetryBtn">Try again</button>
     <button class="scaBtn" type="button" id="scaAuthDismissBtn">Not now</button>
   </div>
   <div class="scaAuthNote">
@@ -114,25 +113,41 @@
   </div>
 </div>
 `;
+
       document.body.appendChild(backdrop);
 
+      // ✅ Bulletproof close
       const close = () => {
-        backdrop.hidden = true;
+        try { backdrop.hidden = true; } catch {}
+        try { backdrop.style.display = "none"; } catch {} // extra safety
         window.__scaAuthRetry = null;
       };
 
+      // Show/hide uses "hidden"; also ensure display resets when shown
+      const open = () => {
+        try { backdrop.style.display = "flex"; } catch {}
+        backdrop.hidden = false;
+      };
+
+      // Close on backdrop click
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) close();
       });
 
-      backdrop.querySelector(".scaAuthClose").addEventListener("click", close);
-      backdrop.querySelector("#scaAuthDismissBtn").addEventListener("click", close);
+      // Close on X / Not now
+      backdrop.querySelector(".scaAuthClose")?.addEventListener("click", close);
+      backdrop.querySelector("#scaAuthDismissBtn")?.addEventListener("click", close);
 
-      backdrop.querySelector("#scaAuthLoginBtn").addEventListener("click", () => {
+      // Log in again action
+      backdrop.querySelector("#scaAuthLoginBtn")?.addEventListener("click", () => {
         if (!openSquarespaceAccountOverlay()) {
           alert("Please use the Account / Log in button in the site header.");
         }
       });
+
+      // Expose open/close hooks on the backdrop for the show() function
+      backdrop.__scaOpen = open;
+      backdrop.__scaClose = close;
 
       backdrop.querySelector("#scaAuthRetryBtn").addEventListener("click", async () => {
         const fn = window.__scaAuthRetry;
@@ -159,22 +174,32 @@
     }
 
     window.SCAAuthUI = {
-      isAuthError,
-      show(reasonHtml, retryFn) {
-        // rate-limit so we don’t spam modals on rapid clicks
-        window.__scaAuthModalLast = window.__scaAuthModalLast || 0;
-        if (Date.now() - window.__scaAuthModalLast < 4000) return;
-        window.__scaAuthModalLast = Date.now();
+  isAuthError,
+  show(reasonHtml) {
+    // rate-limit so we don’t spam modals on rapid clicks
+    window.__scaAuthModalLast = window.__scaAuthModalLast || 0;
+    if (Date.now() - window.__scaAuthModalLast < 4000) return;
+    window.__scaAuthModalLast = Date.now();
 
-        ensureModal();
-        const backdrop = document.getElementById("scaAuthModalBackdrop");
-        const body = document.getElementById("scaAuthBody");
-        if (body && reasonHtml) body.innerHTML = reasonHtml;
+    ensureModal();
 
-        window.__scaAuthRetry = typeof retryFn === "function" ? retryFn : null;
-        backdrop.hidden = false;
-      },
-    };
+    const backdrop = document.getElementById("scaAuthModalBackdrop");
+    const body = document.getElementById("scaAuthBody");
+    if (body && reasonHtml) body.innerHTML = reasonHtml;
+
+    // Retry removed
+    window.__scaAuthRetry = null;
+
+    // ✅ Open modal (supports both basic + "bulletproof" versions)
+    if (backdrop?.__scaOpen) {
+      backdrop.__scaOpen();
+    } else {
+      try { backdrop.style.display = "flex"; } catch {}
+      backdrop.hidden = false;
+    }
+  },
+};
+
   })();
 
   /* =========================================================
@@ -666,13 +691,9 @@
         const eMsg = err2 || err;
         if (window.SCAAuthUI?.isAuthError?.(eMsg)) {
           window.SCAAuthUI.show(
-            "To save your progress, please <b>log in again</b> to confirm your account.",
-            async () => {
-              // retry after user logs in
-              await window.SCAProgress.init();
-              await attemptSave();
-            }
-          );
+  "To save your progress, please <b>log in again</b> to confirm your account."
+);
+
         }
 
         console.warn("Failed to save completion after retry:", err2 || err);
