@@ -1,6 +1,12 @@
 (function () {
   const API_BASE = "https://scarevision-users-proxy.vercel.app"; // keep, or swap to your domain later
 
+  const ENDPOINTS = {
+  sessionStart: `${API_BASE}/api/session-start-v2`,
+  progressGet: `${API_BASE}/api/progress-get-v2`,
+  progressUpdate: `${API_BASE}/api/progress-update-v2`,
+};
+
   // ---- Identity cache helpers (unchanged) ----
   const CACHE_KEY = "sca_member_identity";
   const CACHE_TS_KEY = "sca_member_identity_ts";
@@ -119,7 +125,7 @@
     if (SF.sessionByUser.has(key)) return SF.sessionByUser.get(key);
 
     const p = (async () => {
-      const r = await fetch(`${API_BASE}/api/session-start`, {
+      const r = await fetch(ENDPOINTS.sessionStart, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -148,7 +154,7 @@
     if (SF.progress) return SF.progress;
 
     SF.progress = (async () => {
-      const r = await fetch(`${API_BASE}/api/progress-get`, {
+      const r = await fetch(ENDPOINTS.progressGet, {
         method: "POST",
         credentials: "include",
         headers: { ...authHeaders() }, // ✅ NEW
@@ -167,7 +173,7 @@
   }
 
   async function progressUpdate(caseId, action) {
-    const r = await fetch(`${API_BASE}/api/progress-update`, {
+    const r = await fetch(ENDPOINTS.progressUpdate, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() }, // ✅ NEW
       credentials: "include",
