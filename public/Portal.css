@@ -582,10 +582,11 @@
     position: absolute;
 
     /* Fixed pixel placement behind the card */
-    width: 720px;
-    height: 720px;
-    right: -220px;   /* tweak */
-    top: -200px;     /* tweak */
+    width: 1100px;
+    height: 1100px;
+
+    right: -420px;  /* tweak */
+    top: -420px;    /* tweak */
 
     background: radial-gradient(
       circle,
