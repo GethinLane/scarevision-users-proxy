@@ -607,8 +607,8 @@
 }
 
 /* =========================================
-   Liquid Glass edge rim (EDGE-ONLY ring)
-   Replace your existing .hero-ill::before/::after with this
+   Liquid-ish glass layers for .hero-ill
+   (no hue shift, minimal tint)
    ========================================= */
 
 .sca-portal .hero-ill{
@@ -616,69 +616,57 @@
   overflow: hidden;
 }
 
-/* 1) The refractive rim ring (masked to border thickness) */
-.sca-portal .hero-ill::before{
-  content:"";
-  position:absolute;
+/* hidden svg */
+.sca-portal .hero-ill .lg-svg{
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* layer 1: distortion */
+.sca-portal .hero-ill .lg-filter{
+  position: absolute;
   inset: 0;
-  border-radius: inherit;
-  pointer-events:none;
+  z-index: 0;
 
-  /* Ring thickness */
-  padding: 2px; /* try 2–4px */
-
-  /* The “bubble edge”: bright top rim + side caustics + faint inner rim */
-  background:
-    /* crisp top rim */
-    linear-gradient(180deg,
-      rgba(255,255,255,0.55) 0%,
-      rgba(255,255,255,0.18) 22%,
-      rgba(255,255,255,0.00) 60%),
-    /* side caustics */
-    radial-gradient(140% 120% at 8% 20%,
-      rgba(255,255,255,0.22) 0%,
-      rgba(255,255,255,0.00) 55%),
-    radial-gradient(140% 120% at 92% 20%,
-      rgba(255,255,255,0.18) 0%,
-      rgba(255,255,255,0.00) 58%),
-    /* faint inner rim */
-    radial-gradient(120% 120% at 50% 50%,
-      rgba(255,255,255,0.00) 58%,
-      rgba(255,255,255,0.14) 78%,
-      rgba(255,255,255,0.00) 100%);
-
+  /* IMPORTANT:
+     This distorts the layer itself (approximation).
+     Keep it subtle, otherwise it looks like "wobble" not "refraction". */
+  filter: url(#sca-lg-dist);
   opacity: 0.9;
 
-  /* Mask it so it ONLY renders on the rim ring, not the whole card */
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-
-  /* Helps it feel like light, not paint */
-  mix-blend-mode: screen;
+  /* helps blend nicely */
+  isolation: isolate;
+  pointer-events: none;
 }
 
-/* 2) A small specular “sweep” highlight (also edge-biased, not a bloom) */
-.sca-portal .hero-ill::after{
-  content:"";
-  position:absolute;
-  inset: -30%;
+/* layer 2: neutral glass tint (keep your hero color stable) */
+.sca-portal .hero-ill .lg-overlay{
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(255,255,255,0.08); /* tweak 0.06–0.12 */
+  pointer-events: none;
+}
+
+/* layer 3: specular rim (this is the “bubble edge” cue) */
+.sca-portal .hero-ill .lg-specular{
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   border-radius: inherit;
-  pointer-events:none;
+  pointer-events: none;
 
-  background: linear-gradient(
-    135deg,
-    rgba(255,255,255,0.22) 0%,
-    rgba(255,255,255,0.08) 20%,
-    rgba(255,255,255,0.00) 46%
-  );
-
-  opacity: 0.55;
-  filter: blur(2px);
-  mix-blend-mode: screen;
+  /* rim + inner sparkle */
+  box-shadow:
+    inset 1px 1px 0 rgba(255,255,255,0.55),
+    inset 0 0 10px rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(255,255,255,0.16);
 }
 
-/* Keep content above */
-.sca-portal .hero-ill-inner{ position: relative; z-index: 1; }
+/* keep your actual content above */
+.sca-portal .hero-ill .hero-ill-inner{
+  position: relative;
+  z-index: 3;
+}
