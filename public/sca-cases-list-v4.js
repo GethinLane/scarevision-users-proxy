@@ -162,16 +162,25 @@
     }
 
     function isAuthError(err) {
-      const msg = String(err?.message || err || "");
-      return (
-        msg.includes("No session") ||
-        msg.includes("Session expired") ||
-        msg.includes("Unauthorized") ||
-        msg.includes("Invalid token") ||
-        msg.includes("Not authenticated") ||
-        msg.includes("cookies missing")
-      );
-    }
+  const msg = String(err?.message || err || "");
+
+  // Common auth/session strings
+  if (
+    msg.includes("No session") ||
+    msg.includes("Session expired") ||
+    msg.includes("Unauthorized") ||
+    msg.includes("Invalid token") ||
+    msg.includes("Not authenticated") ||
+    msg.includes("cookies missing") ||
+    msg.includes("Profile request failed") // ✅ Chrome case
+  ) return true;
+
+  // Catch HTTP-ish text patterns
+  if (/\b401\b/.test(msg) || /\b403\b/.test(msg)) return true;
+
+  return false;
+}
+
 
     window.SCAAuthUI = {
   isAuthError,
