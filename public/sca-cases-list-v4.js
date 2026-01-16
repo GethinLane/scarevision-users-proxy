@@ -109,7 +109,7 @@
 backdrop.innerHTML = `
 <div id="scaAuthModal" role="dialog" aria-modal="true" aria-labelledby="scaAuthTitle">
   <div class="scaAuthHead">
-    <h3 class="scaAuthTitle" id="scaAuthTitle">Please log in again</h3>
+    <h4 class="scaAuthTitle" id="scaAuthTitle"><b>Please log in again</b></h4>
     <button class="scaAuthClose" type="button" aria-label="Close">×</button>
   </div>
 
