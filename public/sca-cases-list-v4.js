@@ -54,6 +54,16 @@
   z-index:999999; display:flex; align-items:center; justify-content:center;
   padding:18px;
 }
+#scaAuthModalBackdrop,
+#scaAuthModal,
+#scaAuthModal *{
+  font-family: inherit !important;
+}
+
+#scaAuthModal .scaBtn,
+#scaAuthModal .scaAuthClose{
+  font: inherit !important;
+}
 #scaAuthModal{
   width:min(520px, 100%); background:#fff; border-radius:18px;
   box-shadow:0 24px 80px rgba(15,23,42,.25);
@@ -77,7 +87,7 @@
   padding:0 18px 18px;
 }
 #scaAuthModal .scaBtn{
-  border-radius:12px; padding:10px 14px; font-weight:800; cursor:pointer;
+  border-radius:12px; padding:10px 14px; font-weight:600; cursor:pointer;
   border:1px solid rgba(148,163,184,.35); background:#fff; color:#1c2b4a;
 }
 #scaAuthModal .scaBtnPrimary{
@@ -109,7 +119,7 @@
     <button class="scaBtn" type="button" id="scaAuthDismissBtn">Not now</button>
   </div>
   <div class="scaAuthNote">
-    If this keeps happening (especially on Safari), it can be cookie/session restrictions. Logging in again refreshes access.
+    If this keeps happening (especially on Safari), it can be cookie/session restrictions. Logging in again refreshes access. Please ensure you are not browsing in 'incognito' mode.
   </div>
 </div>
 `;
