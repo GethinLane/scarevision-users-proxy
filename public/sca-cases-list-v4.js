@@ -75,8 +75,9 @@
   display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
 }
 #scaAuthModal .scaAuthTitle{
-  margin:0; font-size:18px; font-weight:800; color:#1c2b4a;
+  margin: 0;
 }
+
 #scaAuthModal .scaAuthClose{
   border:0; background:transparent; cursor:pointer;
   font-size:22px; line-height:1; color:#64748b;
@@ -114,8 +115,7 @@
   <div class="scaAuthBody" id="scaAuthBody">
     To save your progress, please <b>log in again</b> to confirm your account.
   </div>
-  <div class="scaAuthBtns">
-    <button class="scaBtn scaBtnPrimary" type="button" id="scaAuthLoginBtn">Log in again</button>
+  <div class="scaAuthBtns"><b>Log in again<b/></button>
     <button class="scaBtn" type="button" id="scaAuthDismissBtn">Not now</button>
   </div>
   <div class="scaAuthNote">
