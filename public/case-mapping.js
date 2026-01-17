@@ -1,4 +1,4 @@
-<script>
+
 document.addEventListener("DOMContentLoaded", () => {
 
   // Paste your full 1..351 tab-separated list inside these backticks:
@@ -499,4 +499,3 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log("SCA_CASE_MAP sample:", window.SCA_CASE_MAP.slice(0, 5));
 
 });
-</script>
