@@ -693,7 +693,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 
-  padding: 9px 11px 9px 18px;
+  padding: 9px 13px 9px 13px;
   border-radius: 999px;
 
   border: none;
@@ -702,7 +702,7 @@
   overflow: hidden;
 
   /* knobs */
-  --fill: 0.06;   /* main glass fill transparency (try 0.03–0.10) */
+  --fill: 0.01;   /* main glass fill transparency (try 0.03–0.10) */
   --wash: 0.10;   /* tiny tint wash (try 0.06–0.14) */
   --glow: 0.22;   /* coloured glow strength (try 0.12–0.30) */
 
