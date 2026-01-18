@@ -700,6 +700,8 @@
   /* ===== knobs ===== */
   --glass: 0.04;     /* base glass amount (lower = more transparent) */
   --tint: 0.12;      /* tint amount (lower = more transparent) */
+   --boost: 0.42;  /* stronger colour but still transparent */
+
 
   /* Base material: transparent glass + tinted wash + highlight */
   background:
