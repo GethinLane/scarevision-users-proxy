@@ -810,9 +810,6 @@
   --tint-rgb: 28, 43, 74;
   --ink-rgb:  28, 43, 74;
 
-  /* make UPDATED even more transparent if you want */
-  --tint: 0.14;
-  --glass: 0.10;
 }
 
 /* NEW FEATURES — teal */
