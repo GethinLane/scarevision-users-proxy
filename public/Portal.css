@@ -768,7 +768,7 @@
 }
 
 /* ================================
-   Apple-glass pill badge (BASE)
+   Glass pill badge (less frosty, no border)
    ================================ */
 
 .sca-portal .card{
@@ -781,8 +781,6 @@
   position: absolute;
   top: 0;
   right: 0;
-
-  /* your overflow corner placement */
   transform: translate(18px, -18px);
 
   padding: 7px 11px;
@@ -793,29 +791,32 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 
-  /* glass look (sheen built in) */
+  /* less frosty glass */
   background: linear-gradient(135deg,
-    rgba(255,255,255,0.55) 0%,
-    rgba(255,255,255,0.18) 28%,
-    rgba(255,255,255,0.05) 60%,
-    rgba(255,255,255,0.18) 100%
+    rgba(255,255,255,0.28) 0%,
+    rgba(255,255,255,0.12) 35%,
+    rgba(255,255,255,0.06) 70%,
+    rgba(255,255,255,0.14) 100%
   );
 
-  border: 1px solid rgba(255,255,255,0.42);
+  border: none; /* remove border */
   color: #253551;
 
   box-shadow:
-    0 14px 34px rgba(15,23,42,0.14),
-    inset 0 1px 0 rgba(255,255,255,0.60),
-    inset 0 -1px 0 rgba(255,255,255,0.22);
+    0 12px 28px rgba(15,23,42,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.40);
 
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
 
   pointer-events: none;
   white-space: nowrap;
   z-index: 30;
 }
+
+
+
+
 /* ================================
    Apple-glass tinted variants
    ================================ */
