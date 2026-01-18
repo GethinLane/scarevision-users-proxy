@@ -676,8 +676,8 @@
 
 
 /* ======================================================
-   PORTAL BADGE — Liquid Glass (transparent + punchy colour)
-   Drop-in replacement (delete old badge CSS, paste this)
+   PORTAL BADGE — Liquid Glass (transparent, coloured rim + glow)
+   Drop-in replacement for ALL badge CSS
    ====================================================== */
 
 .sca-portal .card{ position: relative; overflow: visible; }
@@ -699,60 +699,43 @@
   border-radius: 999px;
 
   border: none;
-  color: rgb(var(--ink-rgb));
   pointer-events: none;
   white-space: nowrap;
   overflow: hidden;
 
-  /* ===== TUNING (simple knobs) ===== */
-  --glass: 0.10;   /* overall glass fill: 0.06–0.14 */
-  --tint:  0.12;   /* overall tint wash:  0.08–0.16 */
-  --boost: 0.48;   /* colour pop bloom:   0.30–0.60 */
+  /* ===== knobs (only these matter) ===== */
+  --glass: 0.10;  /* background “fill” transparency (0.06–0.14) */
+  --tint:  0.06;  /* tiny tint wash (0.04–0.10) */
+  --rim:   0.45;  /* coloured rim strength (0.25–0.65) */
+  --glow:  0.22;  /* coloured outer glow (0.10–0.35) */
 
-  /* ===== Liquid Glass layers =====
-     Key idea: keep base clear, add colour as a BLOOM (not a flat fill)
-  */
+  /* IMPORTANT: keep the center mostly clear */
   background:
-    /* strong colour bloom (stand out, still transparent) */
-    radial-gradient(120% 120% at 35% 35%,
-      rgba(var(--tint-rgb), var(--boost)) 0%,
-      rgba(var(--tint-rgb), calc(var(--boost) * 0.45)) 40%,
-      rgba(var(--tint-rgb), 0.00) 72%
-    ),
-
-    /* bright specular corner */
-    radial-gradient(120% 140% at 18% 10%,
-      rgba(255,255,255,0.55) 0%,
-      rgba(255,255,255,0.16) 30%,
-      rgba(255,255,255,0.00) 62%
-    ),
-
-    /* light tint wash across the pill */
+    /* subtle diagonal tint (very light) */
     linear-gradient(135deg,
       rgba(var(--tint-rgb), var(--tint)) 0%,
-      rgba(var(--tint-rgb), calc(var(--tint) * 0.55)) 60%,
-      rgba(var(--tint-rgb), 0.00) 100%
+      rgba(var(--tint-rgb), 0.00) 70%
     ),
-
     /* clear glass base */
-    rgba(255,255,255,var(--glass));
+    rgba(255,255,255, var(--glass));
 
-  /* no multiply — keeps it see-through */
-  background-blend-mode: normal, screen, normal, normal;
+  /* glass processing */
+  backdrop-filter: blur(18px) saturate(185%) contrast(1.05);
+  -webkit-backdrop-filter: blur(18px) saturate(185%) contrast(1.05);
 
-  /* “glass” processing */
-  backdrop-filter: blur(18px) saturate(190%) contrast(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(190%) contrast(1.05);
-
-  /* depth + coloured lift */
+  /* colour comes from the edge + glow, NOT the middle */
   box-shadow:
     0 14px 34px rgba(15,23,42,0.14),
-    0 10px 22px rgba(var(--tint-rgb), 0.22),
+    0 10px 22px rgba(var(--tint-rgb), var(--glow)),
+    inset 0 0 0 1px rgba(var(--tint-rgb), var(--rim)),
     inset 0 1px 0 rgba(255,255,255,0.55),
-    inset 0 -1px 0 rgba(255,255,255,0.18);
+    inset 0 -1px 0 rgba(255,255,255,0.16);
+
+  color: rgb(var(--ink-rgb));
+  text-shadow: 0 1px 0 rgba(255,255,255,0.20);
 }
 
-/* Rim light (glass edge cue) */
+/* specular highlight (top-left shine) */
 .sca-portal .portal-badge::before{
   content:"";
   position:absolute;
@@ -761,45 +744,45 @@
   pointer-events:none;
 
   background: linear-gradient(135deg,
-    rgba(255,255,255,0.60) 0%,
-    rgba(255,255,255,0.10) 38%,
-    rgba(255,255,255,0.00) 72%
+    rgba(255,255,255,0.65) 0%,
+    rgba(255,255,255,0.14) 35%,
+    rgba(255,255,255,0.00) 70%
   );
   opacity: 0.55;
   mix-blend-mode: screen;
 }
 
-/* Moving sheen (liquid feel) */
+/* gentle moving sheen (small, not a big colour blob) */
 .sca-portal .portal-badge::after{
   content:"";
   position:absolute;
-  inset:-55%;
+  inset:-60%;
   border-radius: inherit;
   pointer-events:none;
 
-  background: radial-gradient(circle at 25% 35%,
-    rgba(255,255,255,0.34) 0%,
-    rgba(255,255,255,0.10) 20%,
+  background: radial-gradient(circle at 30% 35%,
+    rgba(255,255,255,0.28) 0%,
+    rgba(255,255,255,0.10) 22%,
     rgba(255,255,255,0.00) 55%
   );
 
-  transform: translateX(-30%) rotate(8deg);
+  transform: translateX(-35%) rotate(8deg);
   opacity: 0.55;
-  filter: blur(0.7px);
-  animation: badgeSheen 4.2s ease-in-out infinite;
+  filter: blur(0.8px);
+  animation: badgeSheen 4.8s ease-in-out infinite;
 }
 
 @keyframes badgeSheen{
-  0%   { transform: translateX(-32%) translateY(-2%) rotate(8deg); opacity: 0.40; }
-  50%  { transform: translateX(20%)  translateY(2%)  rotate(8deg); opacity: 0.78; }
-  100% { transform: translateX(-32%) translateY(-2%) rotate(8deg); opacity: 0.40; }
+  0%   { transform: translateX(-38%) translateY(-2%) rotate(8deg); opacity: 0.35; }
+  50%  { transform: translateX(18%)  translateY(2%)  rotate(8deg); opacity: 0.70; }
+  100% { transform: translateX(-38%) translateY(-2%) rotate(8deg); opacity: 0.35; }
 }
 
 @media (prefers-reduced-motion: reduce){
   .sca-portal .portal-badge::after{ animation: none; }
 }
 
-/* ===== Badge presets (set colour) ===== */
+/* ===== Badge presets ===== */
 .sca-portal .portal-badge--new-case{
   --tint-rgb: 29, 78, 216;
   --ink-rgb:  29, 78, 216;
