@@ -703,7 +703,7 @@
   overflow: hidden;
 
   /* KNOBS */
-  --alpha: 0.86;   /* transparency of navy (0.70–0.92) */
+  --alpha: 0.7;   /* transparency of navy (0.70–0.92) */
   --frost: 1px;   /* blur amount (8–16px) */
 
   /* THIS is the transparency: use RGBA not hex */
