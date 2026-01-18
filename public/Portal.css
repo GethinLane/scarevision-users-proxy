@@ -676,7 +676,8 @@
 
 
 /* ======================================================
-   PORTAL BADGE — Liquid Glass v2 (no purple, more transparent)
+   PORTAL BADGE — Liquid Glass (transparent + punchy colour)
+   Drop-in replacement (delete old badge CSS, paste this)
    ====================================================== */
 
 .sca-portal .card{ position: relative; overflow: visible; }
@@ -693,58 +694,65 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 
-  /* grow left more than right */
+  /* left-heavy padding so it grows left more than right */
   padding: 9px 11px 9px 18px;
   border-radius: 999px;
 
-  /* ===== knobs ===== */
-  --glass: 0.04;     /* base glass amount (lower = more transparent) */
-  --tint: 0.12;      /* tint amount (lower = more transparent) */
-   --boost: 0.42;  /* stronger colour but still transparent */
-
-
-  /* Base material: transparent glass + tinted wash + highlight */
-  background:
-    /* top-left specular bloom */
-    radial-gradient(120% 140% at 18% 10%,
-      rgba(255,255,255,0.55) 0%,
-      rgba(255,255,255,0.18) 28%,
-      rgba(255,255,255,0.00) 62%
-    ),
-    /* gentle bottom-right depth */
-    radial-gradient(140% 180% at 80% 120%,
-      rgba(0,0,0,0.16) 0%,
-      rgba(0,0,0,0.00) 55%
-    ),
-    /* tinted glass body (NO purple/iridescence) */
-    linear-gradient(135deg,
-      rgba(var(--tint-rgb), var(--tint)) 0%,
-      rgba(var(--tint-rgb), calc(var(--tint) * 0.75)) 55%,
-      rgba(var(--tint-rgb), calc(var(--tint) * 0.55)) 100%
-    ),
-    /* clear base */
-    rgba(255,255,255,var(--glass));
-
-  background-blend-mode: screen, multiply, normal, normal;
-
-  /* “Liquid Glass” cues */
-  box-shadow:
-    0 14px 34px rgba(15,23,42,0.14),
-    inset 0 1px 0 rgba(255,255,255,0.55),
-    inset 0 -1px 0 rgba(255,255,255,0.18);
-
-  /* glassiness */
-  backdrop-filter: blur(16px) saturate(180%) contrast(1.05);
-  -webkit-backdrop-filter: blur(16px) saturate(180%) contrast(1.05);
-
   border: none;
   color: rgb(var(--ink-rgb));
-  white-space: nowrap;
   pointer-events: none;
+  white-space: nowrap;
   overflow: hidden;
+
+  /* ===== TUNING (simple knobs) ===== */
+  --glass: 0.10;   /* overall glass fill: 0.06–0.14 */
+  --tint:  0.12;   /* overall tint wash:  0.08–0.16 */
+  --boost: 0.48;   /* colour pop bloom:   0.30–0.60 */
+
+  /* ===== Liquid Glass layers =====
+     Key idea: keep base clear, add colour as a BLOOM (not a flat fill)
+  */
+  background:
+    /* strong colour bloom (stand out, still transparent) */
+    radial-gradient(120% 120% at 35% 35%,
+      rgba(var(--tint-rgb), var(--boost)) 0%,
+      rgba(var(--tint-rgb), calc(var(--boost) * 0.45)) 40%,
+      rgba(var(--tint-rgb), 0.00) 72%
+    ),
+
+    /* bright specular corner */
+    radial-gradient(120% 140% at 18% 10%,
+      rgba(255,255,255,0.55) 0%,
+      rgba(255,255,255,0.16) 30%,
+      rgba(255,255,255,0.00) 62%
+    ),
+
+    /* light tint wash across the pill */
+    linear-gradient(135deg,
+      rgba(var(--tint-rgb), var(--tint)) 0%,
+      rgba(var(--tint-rgb), calc(var(--tint) * 0.55)) 60%,
+      rgba(var(--tint-rgb), 0.00) 100%
+    ),
+
+    /* clear glass base */
+    rgba(255,255,255,var(--glass));
+
+  /* no multiply — keeps it see-through */
+  background-blend-mode: normal, screen, normal, normal;
+
+  /* “glass” processing */
+  backdrop-filter: blur(18px) saturate(190%) contrast(1.05);
+  -webkit-backdrop-filter: blur(18px) saturate(190%) contrast(1.05);
+
+  /* depth + coloured lift */
+  box-shadow:
+    0 14px 34px rgba(15,23,42,0.14),
+    0 10px 22px rgba(var(--tint-rgb), 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(255,255,255,0.18);
 }
 
-/* Rim “edge light” */
+/* Rim light (glass edge cue) */
 .sca-portal .portal-badge::before{
   content:"";
   position:absolute;
@@ -752,17 +760,16 @@
   border-radius: inherit;
   pointer-events:none;
 
-  background:
-    linear-gradient(135deg,
-      rgba(255,255,255,0.60) 0%,
-      rgba(255,255,255,0.10) 38%,
-      rgba(255,255,255,0.00) 72%
-    );
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.60) 0%,
+    rgba(255,255,255,0.10) 38%,
+    rgba(255,255,255,0.00) 72%
+  );
   opacity: 0.55;
   mix-blend-mode: screen;
 }
 
-/* Moving sheen (more “liquid”) */
+/* Moving sheen (liquid feel) */
 .sca-portal .portal-badge::after{
   content:"";
   position:absolute;
@@ -770,12 +777,11 @@
   border-radius: inherit;
   pointer-events:none;
 
-  background:
-    radial-gradient(circle at 25% 35%,
-      rgba(255,255,255,0.36) 0%,
-      rgba(255,255,255,0.12) 20%,
-      rgba(255,255,255,0.00) 52%
-    );
+  background: radial-gradient(circle at 25% 35%,
+    rgba(255,255,255,0.34) 0%,
+    rgba(255,255,255,0.10) 20%,
+    rgba(255,255,255,0.00) 55%
+  );
 
   transform: translateX(-30%) rotate(8deg);
   opacity: 0.55;
@@ -784,37 +790,28 @@
 }
 
 @keyframes badgeSheen{
-  0%   { transform: translateX(-32%) translateY(-2%) rotate(8deg);  opacity: 0.40; }
-  50%  { transform: translateX(20%)  translateY(2%)  rotate(8deg);  opacity: 0.78; }
-  100% { transform: translateX(-32%) translateY(-2%) rotate(8deg);  opacity: 0.40; }
+  0%   { transform: translateX(-32%) translateY(-2%) rotate(8deg); opacity: 0.40; }
+  50%  { transform: translateX(20%)  translateY(2%)  rotate(8deg); opacity: 0.78; }
+  100% { transform: translateX(-32%) translateY(-2%) rotate(8deg); opacity: 0.40; }
 }
 
 @media (prefers-reduced-motion: reduce){
   .sca-portal .portal-badge::after{ animation: none; }
 }
 
-/* ===== Badge presets ===== */
-
-/* NEW CASE — blue */
+/* ===== Badge presets (set colour) ===== */
 .sca-portal .portal-badge--new-case{
   --tint-rgb: 29, 78, 216;
   --ink-rgb:  29, 78, 216;
 }
-
-/* NEW VIDEO — purple (only this one is purple) */
 .sca-portal .portal-badge--new-video{
   --tint-rgb: 124, 77, 255;
   --ink-rgb:  124, 77, 255;
 }
-
-/* UPDATED — navy */
 .sca-portal .portal-badge--updated{
   --tint-rgb: 28, 43, 74;
   --ink-rgb:  28, 43, 74;
-
 }
-
-/* NEW FEATURES — teal */
 .sca-portal .portal-badge--new-features{
   --tint-rgb: 13, 148, 136;
   --ink-rgb:  13, 148, 136;
