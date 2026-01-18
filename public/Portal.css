@@ -766,3 +766,53 @@
   white-space: nowrap;
   z-index: 20; /* stay above everything */
 }
+
+/* ================================
+   Apple-glass pill badge (BASE)
+   ================================ */
+
+.sca-portal .card{
+  position: relative;
+  overflow: visible;
+}
+
+.sca-portal .card[data-badge]::after{
+  content: attr(data-badge);
+  position: absolute;
+  top: 0;
+  right: 0;
+
+  /* your overflow corner placement */
+  transform: translate(18px, -18px);
+
+  padding: 7px 11px;
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  /* glass look (sheen built in) */
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(255,255,255,0.18) 28%,
+    rgba(255,255,255,0.05) 60%,
+    rgba(255,255,255,0.18) 100%
+  );
+
+  border: 1px solid rgba(255,255,255,0.42);
+  color: #253551;
+
+  box-shadow:
+    0 14px 34px rgba(15,23,42,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.60),
+    inset 0 -1px 0 rgba(255,255,255,0.22);
+
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 30;
+}
