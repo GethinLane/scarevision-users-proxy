@@ -676,8 +676,7 @@
 
 
 /* ======================================================
-   PORTAL BADGE — Liquid Glass (transparent, coloured rim + glow)
-   Drop-in replacement for ALL badge CSS
+   PORTAL BADGE — Glass (NO border, very transparent, still pops)
    ====================================================== */
 
 .sca-portal .card{ position: relative; overflow: visible; }
@@ -694,7 +693,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 
-  /* left-heavy padding so it grows left more than right */
   padding: 9px 11px 9px 18px;
   border-radius: 999px;
 
@@ -703,79 +701,72 @@
   white-space: nowrap;
   overflow: hidden;
 
-  /* ===== knobs (only these matter) ===== */
-  --glass: 0.10;  /* background “fill” transparency (0.06–0.14) */
-  --tint:  0.06;  /* tiny tint wash (0.04–0.10) */
-  --rim:   0.45;  /* coloured rim strength (0.25–0.65) */
-  --glow:  0.22;  /* coloured outer glow (0.10–0.35) */
+  /* knobs */
+  --fill: 0.06;   /* main glass fill transparency (try 0.03–0.10) */
+  --wash: 0.10;   /* tiny tint wash (try 0.06–0.14) */
+  --glow: 0.22;   /* coloured glow strength (try 0.12–0.30) */
 
-  /* IMPORTANT: keep the center mostly clear */
+  /* very transparent glass + very light tint wash */
   background:
-    /* subtle diagonal tint (very light) */
     linear-gradient(135deg,
-      rgba(var(--tint-rgb), var(--tint)) 0%,
+      rgba(var(--tint-rgb), var(--wash)) 0%,
       rgba(var(--tint-rgb), 0.00) 70%
     ),
-    /* clear glass base */
-    rgba(255,255,255, var(--glass));
+    rgba(255,255,255, var(--fill));
 
-  /* glass processing */
-  backdrop-filter: blur(18px) saturate(185%) contrast(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(185%) contrast(1.05);
+  /* IMPORTANT: no multiply, no rim line */
+  background-blend-mode: normal, normal;
 
-  /* colour comes from the edge + glow, NOT the middle */
+  backdrop-filter: blur(18px) saturate(190%);
+  -webkit-backdrop-filter: blur(18px) saturate(190%);
+
+  /* pop WITHOUT a border */
   box-shadow:
-    0 14px 34px rgba(15,23,42,0.14),
+    0 12px 26px rgba(15,23,42,0.12),
     0 10px 22px rgba(var(--tint-rgb), var(--glow)),
-    inset 0 0 0 1px rgba(var(--tint-rgb), var(--rim)),
-    inset 0 1px 0 rgba(255,255,255,0.55),
-    inset 0 -1px 0 rgba(255,255,255,0.16);
+    inset 0 1px 0 rgba(255,255,255,0.60),
+    inset 0 -1px 0 rgba(255,255,255,0.14);
 
   color: rgb(var(--ink-rgb));
-  text-shadow: 0 1px 0 rgba(255,255,255,0.20);
 }
 
-/* specular highlight (top-left shine) */
+/* specular highlight (soft, no edge line) */
 .sca-portal .portal-badge::before{
   content:"";
   position:absolute;
   inset:0;
   border-radius: inherit;
   pointer-events:none;
-
   background: linear-gradient(135deg,
-    rgba(255,255,255,0.65) 0%,
-    rgba(255,255,255,0.14) 35%,
+    rgba(255,255,255,0.55) 0%,
+    rgba(255,255,255,0.10) 36%,
     rgba(255,255,255,0.00) 70%
   );
   opacity: 0.55;
-  mix-blend-mode: screen;
 }
 
-/* gentle moving sheen (small, not a big colour blob) */
+/* tiny moving sheen (subtle) */
 .sca-portal .portal-badge::after{
   content:"";
   position:absolute;
   inset:-60%;
   border-radius: inherit;
   pointer-events:none;
-
   background: radial-gradient(circle at 30% 35%,
-    rgba(255,255,255,0.28) 0%,
-    rgba(255,255,255,0.10) 22%,
+    rgba(255,255,255,0.22) 0%,
+    rgba(255,255,255,0.08) 22%,
     rgba(255,255,255,0.00) 55%
   );
-
   transform: translateX(-35%) rotate(8deg);
   opacity: 0.55;
-  filter: blur(0.8px);
-  animation: badgeSheen 4.8s ease-in-out infinite;
+  filter: blur(0.9px);
+  animation: badgeSheen 5.2s ease-in-out infinite;
 }
 
 @keyframes badgeSheen{
-  0%   { transform: translateX(-38%) translateY(-2%) rotate(8deg); opacity: 0.35; }
-  50%  { transform: translateX(18%)  translateY(2%)  rotate(8deg); opacity: 0.70; }
-  100% { transform: translateX(-38%) translateY(-2%) rotate(8deg); opacity: 0.35; }
+  0%   { transform: translateX(-40%) rotate(8deg); opacity: 0.30; }
+  50%  { transform: translateX(16%)  rotate(8deg); opacity: 0.65; }
+  100% { transform: translateX(-40%) rotate(8deg); opacity: 0.30; }
 }
 
 @media (prefers-reduced-motion: reduce){
@@ -783,19 +774,7 @@
 }
 
 /* ===== Badge presets ===== */
-.sca-portal .portal-badge--new-case{
-  --tint-rgb: 29, 78, 216;
-  --ink-rgb:  29, 78, 216;
-}
-.sca-portal .portal-badge--new-video{
-  --tint-rgb: 124, 77, 255;
-  --ink-rgb:  124, 77, 255;
-}
-.sca-portal .portal-badge--updated{
-  --tint-rgb: 28, 43, 74;
-  --ink-rgb:  28, 43, 74;
-}
-.sca-portal .portal-badge--new-features{
-  --tint-rgb: 13, 148, 136;
-  --ink-rgb:  13, 148, 136;
-}
+.sca-portal .portal-badge--new-case{     --tint-rgb: 29, 78, 216;  --ink-rgb: 29, 78, 216; }
+.sca-portal .portal-badge--new-video{    --tint-rgb: 124, 77, 255; --ink-rgb: 124, 77, 255; }
+.sca-portal .portal-badge--updated{      --tint-rgb: 28, 43, 74;   --ink-rgb: 28, 43, 74; }
+.sca-portal .portal-badge--new-features{ --tint-rgb: 13, 148, 136; --ink-rgb: 13, 148, 136; }
