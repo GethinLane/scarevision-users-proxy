@@ -706,8 +706,8 @@
   background: #253551;
 
   /* Frosted background behind the badge */
-  backdrop-filter: blur(14px) saturate(140%) contrast(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(140%) contrast(1.05);
+  backdrop-filter: blur(1px) saturate(140%) contrast(1.05);
+  -webkit-backdrop-filter: blur(1px) saturate(140%) contrast(1.05);
 
   /* Lift + subtle inner shine */
   box-shadow:
@@ -727,7 +727,7 @@
   inset:0;
   border-radius: inherit;
   pointer-events:none;
-  background: rgba(0,0,0,0.22);  /* <-- tint strength (0.12–0.32) */
+  background: rgba(0,0,0,0.12);  /* <-- tint strength (0.12–0.32) */
 }
 
 /* Specular sheen: makes it feel glassy */
