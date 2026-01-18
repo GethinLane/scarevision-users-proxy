@@ -673,72 +673,145 @@
   position: relative;
   z-index: 3;
 }
+
+
 /* ======================================================
-   PORTAL BADGES — pill (tinted glass, NO white gradient)
+   PORTAL BADGE — Apple-ish "Liquid Glass" pill
+   (specular rim + iridescent sheen + blur)
    ====================================================== */
 
-.sca-portal .card{
-  position: relative;
-  overflow: visible;
-}
+.sca-portal .card{ position: relative; overflow: visible; }
 
-/* Base badge */
-.sca-portal .card[data-badge]::after{
-  content: attr(data-badge);
+.sca-portal .portal-badge{
+  /* placement (keep your good positioning) */
   position: absolute;
   top: 0;
   right: 0;
   transform: translate(18px, -18px);
+  z-index: 60;
 
-  /* size */
+  /* sizing */
   font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 
   /* grow left more than right */
-  padding: 9px 11px 9px 18px; /* top right bottom left */
-
+  padding: 9px 11px 9px 18px;
   border-radius: 999px;
+
+  /* --- Liquid Glass core --- */
+  /* Tint is set by --tint below (per type) */
+  background:
+    /* subtle inner bloom */
+    radial-gradient(120% 140% at 20% 15%,
+      rgba(255,255,255,0.55) 0%,
+      rgba(255,255,255,0.18) 28%,
+      rgba(255,255,255,0.00) 60%
+    ),
+    /* main tinted glass body */
+    linear-gradient(135deg,
+      rgba(var(--tint), 0.26) 0%,
+      rgba(var(--tint), 0.16) 50%,
+      rgba(var(--tint), 0.10) 100%
+    ),
+    /* very faint iridescent sweep */
+    conic-gradient(from 210deg at 30% 30%,
+      rgba(124,77,255,0.14),
+      rgba(79,124,255,0.12),
+      rgba(13,148,136,0.10),
+      rgba(255,255,255,0.00),
+      rgba(124,77,255,0.14)
+    );
+
+  background-blend-mode: screen, normal, soft-light;
+
+  /* Apple-glass depth cues */
+  box-shadow:
+    0 14px 34px rgba(15,23,42,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(255,255,255,0.18);
+
+  /* “material” */
+  backdrop-filter: blur(14px) saturate(190%) contrast(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) contrast(1.05);
+
+  /* no border (but we keep definition via rim highlight/shadows) */
   border: none;
 
-  /* neutral glass fill (no gradient) */
-  background: rgba(255,255,255,0.14);
-  color: #253551;
-
-  box-shadow:
-    0 12px 28px rgba(15,23,42,0.12),
-    inset 0 1px 0 rgba(255,255,255,0.35),
-    inset 0 -1px 0 rgba(255,255,255,0.12);
-
-  backdrop-filter: blur(8px) saturate(120%);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
-
-  pointer-events: none;
+  color: rgb(var(--ink));
   white-space: nowrap;
-  z-index: 50;
+  pointer-events: none;
+  overflow: hidden; /* needed for the moving sheen */
 }
 
-/* NEW CASE — blue */
-.sca-portal .card[data-badge-type="new-case"]::after{
-  color: #1d4ed8;
-  background: rgba(29,78,216,0.18);
+/* Specular rim highlight */
+.sca-portal .portal-badge::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(255,255,255,0.10) 35%,
+    rgba(255,255,255,0.00) 70%
+  );
+  opacity: 0.55;
+  mix-blend-mode: screen;
 }
 
-/* NEW VIDEO — purple */
-.sca-portal .card[data-badge-type="new-video"]::after{
-  color: #7c4dff;
-  background: rgba(124,77,255,0.18);
+/* Moving “liquid” sheen streak */
+.sca-portal .portal-badge::after{
+  content: "";
+  position: absolute;
+  inset: -40%;
+  border-radius: inherit;
+  pointer-events: none;
+
+  background: radial-gradient(circle at 20% 30%,
+    rgba(255,255,255,0.32) 0%,
+    rgba(255,255,255,0.10) 22%,
+    rgba(255,255,255,0.00) 55%
+  );
+
+  transform: translateX(-25%);
+  opacity: 0.55;
+  filter: blur(0.6px);
+  animation: badgeSheen 4.5s ease-in-out infinite;
 }
 
-/* UPDATED — navy */
-.sca-portal .card[data-badge-type="updated"]::after{
-  color: #1c2b4a;
-  background: rgba(28,43,74,0.22);
+@keyframes badgeSheen{
+  0%   { transform: translateX(-28%) translateY(-2%); opacity: 0.45; }
+  50%  { transform: translateX(18%)  translateY(2%);  opacity: 0.70; }
+  100% { transform: translateX(-28%) translateY(-2%); opacity: 0.45; }
 }
 
-/* NEW FEATURES — teal */
-.sca-portal .card[data-badge-type="new-features"]::after{
-  color: #0d9488;
-  background: rgba(13,148,136,0.18);
+@media (prefers-reduced-motion: reduce){
+  .sca-portal .portal-badge::after{ animation: none; }
+}
+
+/* ======================================================
+   Badge color presets (set tint + ink)
+   ====================================================== */
+
+.sca-portal .portal-badge--new-case{
+  --tint: 29, 78, 216;   /* blue */
+  --ink:  29, 78, 216;
+}
+
+.sca-portal .portal-badge--new-video{
+  --tint: 124, 77, 255;  /* purple */
+  --ink:  124, 77, 255;
+}
+
+.sca-portal .portal-badge--updated{
+  --tint: 28, 43, 74;    /* navy */
+  --ink:  28, 43, 74;
+}
+
+.sca-portal .portal-badge--new-features{
+  --tint: 13, 148, 136;  /* teal */
+  --ink:  13, 148, 136;
 }
