@@ -816,3 +816,55 @@
   white-space: nowrap;
   z-index: 30;
 }
+/* ================================
+   Apple-glass tinted variants
+   ================================ */
+
+/* NEW CASE — blue */
+.sca-portal .card[data-badge-type="new-case"]::after{
+  color: #1d4ed8;
+  border-color: rgba(29,78,216,0.28);
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(29,78,216,0.10) 28%,
+    rgba(29,78,216,0.06) 60%,
+    rgba(255,255,255,0.18) 100%
+  );
+}
+
+/* NEW VIDEO — purple */
+.sca-portal .card[data-badge-type="new-video"]::after{
+  color: #7c4dff;
+  border-color: rgba(124,77,255,0.30);
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(124,77,255,0.12) 28%,
+    rgba(124,77,255,0.07) 60%,
+    rgba(255,255,255,0.18) 100%
+  );
+}
+
+/* UPDATED — slate */
+.sca-portal .card[data-badge-type="updated"]::after{
+  color: #475569;
+  border-color: rgba(71,85,105,0.22);
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(71,85,105,0.08) 28%,
+    rgba(71,85,105,0.05) 60%,
+    rgba(255,255,255,0.18) 100%
+  );
+}
+
+/* NEW FEATURES — teal */
+.sca-portal .card[data-badge-type="new-features"]::after{
+  color: #0d9488;
+  border-color: rgba(13,148,136,0.26);
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(13,148,136,0.10) 28%,
+    rgba(13,148,136,0.06) 60%,
+    rgba(255,255,255,0.18) 100%
+  );
+}
+
