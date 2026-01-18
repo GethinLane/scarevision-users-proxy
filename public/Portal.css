@@ -676,7 +676,7 @@
 
 
 /* ======================================================
-   PORTAL BADGE — vivid navy + tinted glass (no washed-out opacity)
+   PORTAL BADGE — Vivid navy glass + dark tint + frost (NO blend-modes)
    ====================================================== */
 
 .sca-portal .card{ position: relative; overflow: visible; }
@@ -702,30 +702,45 @@
   white-space: nowrap;
   overflow: hidden;
 
-  /* Frost */
-  backdrop-filter: blur(1px) saturate(140%);
-  -webkit-backdrop-filter: blur(1px) saturate(140%);
+  /* VIVID base colour stays vivid */
+  background: #253551;
 
-  /* Vivid base + dark tint overlay + subtle highlight */
-  background:
-    /* glossy highlight */
-    linear-gradient(135deg,
-      rgba(255,255,255,0.22) 0%,
-      rgba(255,255,255,0.06) 35%,
-      rgba(255,255,255,0.00) 70%
-    ),
-    /* dark “tint” layer (darkens whatever is behind) */
-    rgba(0,0,0,0.22),
-    /* vivid brand colour stays rich */
-    #253551;
+  /* Frosted background behind the badge */
+  backdrop-filter: blur(14px) saturate(140%) contrast(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(140%) contrast(1.05);
 
-  /* Make the black layer act like a tint (not a washout) */
-  background-blend-mode: screen, multiply, normal;
-
+  /* Lift + subtle inner shine */
   box-shadow:
     0 12px 26px rgba(15,23,42,0.18),
-    inset 0 1px 0 rgba(255,255,255,0.14);
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 -1px 0 rgba(0,0,0,0.20);
 
+  /* Tiny edge so it reads as “glass” not a flat sticker */
   outline: 1px solid rgba(255,255,255,0.10);
   outline-offset: -1px;
+}
+
+/* Dark tint layer: this is what “tints everything behind” */
+.sca-portal .portal-badge::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  pointer-events:none;
+  background: rgba(0,0,0,0.22);  /* <-- tint strength (0.12–0.32) */
+}
+
+/* Specular sheen: makes it feel glassy */
+.sca-portal .portal-badge::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  pointer-events:none;
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.22) 0%,
+    rgba(255,255,255,0.06) 35%,
+    rgba(255,255,255,0.00) 70%
+  );
+  opacity: 0.75;
 }
