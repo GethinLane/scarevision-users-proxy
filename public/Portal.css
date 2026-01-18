@@ -845,17 +845,17 @@
   );
 }
 
-/* UPDATED — slate */
+/* UPDATED — navy ink (on-brand) */
 .sca-portal .card[data-badge-type="updated"]::after{
-  color: #475569;
-  border-color: rgba(71,85,105,0.22);
+  color: #1c2b4a; /* your --navy */
   background: linear-gradient(135deg,
-    rgba(255,255,255,0.55) 0%,
-    rgba(71,85,105,0.08) 28%,
-    rgba(71,85,105,0.05) 60%,
-    rgba(255,255,255,0.18) 100%
+    rgba(255,255,255,0.26) 0%,
+    rgba(28,43,74,0.10) 42%,
+    rgba(28,43,74,0.06) 72%,
+    rgba(255,255,255,0.12) 100%
   );
 }
+
 
 /* NEW FEATURES — teal */
 .sca-portal .card[data-badge-type="new-features"]::after{
