@@ -673,3 +673,67 @@
   position: relative;
   z-index: 3;
 }
+
+/* ================================
+   Portal pill badges (coloured)
+   ================================ */
+
+.sca-portal .card{
+  position: relative;
+  overflow: visible;
+}
+
+/* base badge */
+.sca-portal .card[data-badge]::after{
+  content: attr(data-badge);
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  transform: translate(12px, -12px);
+
+  padding: 8px 12px;
+  border-radius: 999px;
+
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 5;
+
+  /* defaults (overridden by type rules below) */
+  background: rgba(37,53,81,0.08);
+  color: #253551;
+  border: 1px solid rgba(37,53,81,0.18);
+  box-shadow: 0 12px 26px rgba(15,23,42,0.14);
+}
+
+/* NEW CASE — blue */
+.sca-portal .card[data-badge-type="new-case"]::after{
+  background: rgba(29,78,216,0.10);
+  border-color: rgba(29,78,216,0.28);
+  color: #1d4ed8;
+}
+
+/* NEW VIDEO — purple */
+.sca-portal .card[data-badge-type="new-video"]::after{
+  background: rgba(124,77,255,0.12);
+  border-color: rgba(124,77,255,0.30);
+  color: #7c4dff;
+}
+
+/* UPDATED — slate */
+.sca-portal .card[data-badge-type="updated"]::after{
+  background: rgba(71,85,105,0.10);
+  border-color: rgba(71,85,105,0.22);
+  color: #475569;
+}
+
+/* NEW FEATURES — teal */
+.sca-portal .card[data-badge-type="new-features"]::after{
+  background: rgba(13,148,136,0.12);
+  border-color: rgba(13,148,136,0.26);
+  color: #0d9488;
+}
