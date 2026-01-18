@@ -676,7 +676,7 @@
 
 
 /* ======================================================
-   PORTAL BADGE — Vivid navy glass (actually transparent)
+   PORTAL BADGE — Single colour (bright blue) + frosted
    ====================================================== */
 
 .sca-portal .card{ position: relative; overflow: visible; }
@@ -702,19 +702,19 @@
   white-space: nowrap;
   overflow: hidden;
 
-  /* KNOBS */
-  --alpha: 0.7;   /* transparency of navy (0.70–0.92) */
-  --frost: 1px;   /* blur amount (8–16px) */
+  /* transparency + frost */
+  --alpha: 0.75;   /* tweak: 0.75–0.92 */
+  --frost: 1px;   /* tweak: 8–16px */
 
-  /* THIS is the transparency: use RGBA not hex */
-  background: rgba(29,78,216,var(--alpha)); /* bright blue */
-
+  /* bright blue */
+  background: rgba(29,78,216,var(--alpha));
 
   backdrop-filter: blur(var(--frost)) saturate(135%);
   -webkit-backdrop-filter: blur(var(--frost)) saturate(135%);
 
   box-shadow:
     0 12px 26px rgba(15,23,42,0.18),
+    0 10px 22px rgba(29,78,216,0.22),
     inset 0 1px 0 rgba(255,255,255,0.16),
     inset 0 -1px 0 rgba(0,0,0,0.22);
 
@@ -722,7 +722,7 @@
   outline-offset: -1px;
 }
 
-/* soft highlight so it reads “frosted/glass” */
+/* soft highlight */
 .sca-portal .portal-badge::after{
   content:"";
   position:absolute;
@@ -735,38 +735,4 @@
     rgba(255,255,255,0.00) 70%
   );
   opacity: 0.75;
-}
-
-/* =========================
-   Badge colours by type
-   ========================= */
-
-/* Default (UPDATED) = bright blue */
-.sca-portal .portal-badge{
-  --badge-rgb: 29, 78, 216; /* blue */
-  background: rgba(var(--badge-rgb), var(--alpha));
-}
-
-/* NEW FEATURES = purple */
-.sca-portal .portal-badge--new-features{
-  --badge-rgb: 124, 77, 255; /* purple */
-}
-
-/* NEW CASE = red */
-.sca-portal .portal-badge--new-case{
-  --badge-rgb: 239, 68, 68; /* red */
-}
-
-/* NEW VIDEO = green */
-.sca-portal .portal-badge--new-video{
-  --badge-rgb: 34, 197, 94; /* green */
-}
-
-/* Make the glow match the badge colour */
-.sca-portal .portal-badge{
-  box-shadow:
-    0 12px 26px rgba(15,23,42,0.18),
-    0 10px 22px rgba(var(--badge-rgb), 0.22),
-    inset 0 1px 0 rgba(255,255,255,0.16),
-    inset 0 -1px 0 rgba(0,0,0,0.22);
 }
