@@ -698,8 +698,8 @@
   border-radius: 999px;
 
   /* ===== knobs ===== */
-  --glass: 0.12;     /* base glass amount (lower = more transparent) */
-  --tint: 0.16;      /* tint amount (lower = more transparent) */
+  --glass: 0.04;     /* base glass amount (lower = more transparent) */
+  --tint: 0.12;      /* tint amount (lower = more transparent) */
 
   /* Base material: transparent glass + tinted wash + highlight */
   background:
