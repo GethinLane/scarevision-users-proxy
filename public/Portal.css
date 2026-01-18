@@ -674,7 +674,7 @@
   z-index: 3;
 }
 /* ======================================================
-   PORTAL BADGES — single source of truth (FINAL)
+   PORTAL BADGES — pill (tinted glass, NO white gradient)
    ====================================================== */
 
 .sca-portal .card{
@@ -682,7 +682,7 @@
   overflow: visible;
 }
 
-/* Base glass badge (applies to all badge types) */
+/* Base badge */
 .sca-portal .card[data-badge]::after{
   content: attr(data-badge);
   position: absolute;
@@ -702,20 +702,17 @@
   border-radius: 999px;
   border: none;
 
-  /* subtle glass (not frosty) */
-  background: linear-gradient(135deg,
-    rgba(255,255,255,0.24) 0%,
-    rgba(255,255,255,0.10) 40%,
-    rgba(255,255,255,0.06) 75%,
-    rgba(255,255,255,0.12) 100%
-  );
+  /* neutral glass fill (no gradient) */
+  background: rgba(255,255,255,0.14);
+  color: #253551;
 
   box-shadow:
     0 12px 28px rgba(15,23,42,0.12),
-    inset 0 1px 0 rgba(255,255,255,0.35);
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -1px 0 rgba(255,255,255,0.12);
 
-  backdrop-filter: blur(6px) saturate(120%);
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
 
   pointer-events: none;
   white-space: nowrap;
@@ -725,43 +722,23 @@
 /* NEW CASE — blue */
 .sca-portal .card[data-badge-type="new-case"]::after{
   color: #1d4ed8;
-  background: linear-gradient(135deg,
-    rgba(255,255,255,0.22) 0%,
-    rgba(29,78,216,0.12) 45%,
-    rgba(29,78,216,0.06) 78%,
-    rgba(255,255,255,0.10) 100%
-  );
+  background: rgba(29,78,216,0.18);
 }
 
 /* NEW VIDEO — purple */
 .sca-portal .card[data-badge-type="new-video"]::after{
   color: #7c4dff;
-  background: linear-gradient(135deg,
-    rgba(255,255,255,0.22) 0%,
-    rgba(124,77,255,0.14) 45%,
-    rgba(124,77,255,0.07) 78%,
-    rgba(255,255,255,0.10) 100%
-  );
+  background: rgba(124,77,255,0.18);
 }
 
-/* UPDATED — NAVY (your request) */
+/* UPDATED — navy */
 .sca-portal .card[data-badge-type="updated"]::after{
   color: #1c2b4a;
-  background: linear-gradient(135deg,
-    rgba(255,255,255,0.18) 0%,
-    rgba(28,43,74,0.18) 50%,
-    rgba(28,43,74,0.10) 78%,
-    rgba(255,255,255,0.08) 100%
-  );
+  background: rgba(28,43,74,0.22);
 }
 
 /* NEW FEATURES — teal */
 .sca-portal .card[data-badge-type="new-features"]::after{
   color: #0d9488;
-  background: linear-gradient(135deg,
-    rgba(255,255,255,0.22) 0%,
-    rgba(13,148,136,0.12) 45%,
-    rgba(13,148,136,0.06) 78%,
-    rgba(255,255,255,0.10) 100%
-  );
+  background: rgba(13,148,136,0.18);
 }
