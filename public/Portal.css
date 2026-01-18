@@ -676,7 +676,8 @@
 
 
 /* ======================================================
-   PORTAL BADGE — Glass (NO border, very transparent, still pops)
+   PORTAL BADGE — Glass (actually transparent on white cards)
+   Drop-in replacement (delete your current badge CSS, paste this)
    ====================================================== */
 
 .sca-portal .card{ position: relative; overflow: visible; }
@@ -693,7 +694,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 
-  padding: 9px 13px 9px 13px;
+  padding: 9px 13px;
   border-radius: 999px;
 
   border: none;
@@ -701,26 +702,17 @@
   white-space: nowrap;
   overflow: hidden;
 
-  /* knobs */
-  --fill: 0.01;   /* main glass fill transparency (try 0.03–0.10) */
-  --wash: 0.10;   /* tiny tint wash (try 0.06–0.14) */
-  --glow: 0.22;   /* coloured glow strength (try 0.12–0.30) */
+  /* ===== knobs ===== */
+  --fill: 0.04;   /* main glass fill (0.02–0.08) */
+  --glow: 0.28;   /* colour glow strength (0.14–0.35) */
 
-  /* very transparent glass + very light tint wash */
-  background:
-    linear-gradient(135deg,
-      rgba(var(--tint-rgb), var(--wash)) 0%,
-      rgba(var(--tint-rgb), 0.00) 70%
-    ),
-    rgba(255,255,255, var(--fill));
-
-  /* IMPORTANT: no multiply, no rim line */
-  background-blend-mode: normal, normal;
+  /* IMPORTANT: keep center CLEAR (no tinted gradient fill) */
+  background: rgba(255,255,255, var(--fill));
 
   backdrop-filter: blur(18px) saturate(190%);
   -webkit-backdrop-filter: blur(18px) saturate(190%);
 
-  /* pop WITHOUT a border */
+  /* pop comes from glow + specular, NOT a coloured fill */
   box-shadow:
     0 12px 26px rgba(15,23,42,0.12),
     0 10px 22px rgba(var(--tint-rgb), var(--glow)),
@@ -730,7 +722,7 @@
   color: rgb(var(--ink-rgb));
 }
 
-/* specular highlight (soft, no edge line) */
+/* specular highlight (soft, no dark border) */
 .sca-portal .portal-badge::before{
   content:"";
   position:absolute;
@@ -745,7 +737,7 @@
   opacity: 0.55;
 }
 
-/* tiny moving sheen (subtle) */
+/* subtle moving sheen */
 .sca-portal .portal-badge::after{
   content:"";
   position:absolute;
@@ -774,7 +766,19 @@
 }
 
 /* ===== Badge presets ===== */
-.sca-portal .portal-badge--new-case{     --tint-rgb: 29, 78, 216;  --ink-rgb: 29, 78, 216; }
-.sca-portal .portal-badge--new-video{    --tint-rgb: 124, 77, 255; --ink-rgb: 124, 77, 255; }
-.sca-portal .portal-badge--updated{      --tint-rgb: 28, 43, 74;   --ink-rgb: 28, 43, 74; }
-.sca-portal .portal-badge--new-features{ --tint-rgb: 13, 148, 136; --ink-rgb: 13, 148, 136; }
+.sca-portal .portal-badge--new-case{
+  --tint-rgb: 29, 78, 216;
+  --ink-rgb:  29, 78, 216;
+}
+.sca-portal .portal-badge--new-video{
+  --tint-rgb: 124, 77, 255;
+  --ink-rgb:  124, 77, 255;
+}
+.sca-portal .portal-badge--updated{
+  --tint-rgb: 28, 43, 74;
+  --ink-rgb:  28, 43, 74;
+}
+.sca-portal .portal-badge--new-features{
+  --tint-rgb: 13, 148, 136;
+  --ink-rgb:  13, 148, 136;
+}
