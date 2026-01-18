@@ -676,21 +676,18 @@
 
 
 /* ======================================================
-   PORTAL BADGE — Apple-ish "Liquid Glass" pill
-   (specular rim + iridescent sheen + blur)
+   PORTAL BADGE — Liquid Glass v2 (no purple, more transparent)
    ====================================================== */
 
 .sca-portal .card{ position: relative; overflow: visible; }
 
 .sca-portal .portal-badge{
-  /* placement (keep your good positioning) */
   position: absolute;
   top: 0;
   right: 0;
   transform: translate(18px, -18px);
   z-index: 60;
 
-  /* sizing */
   font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.06em;
@@ -700,118 +697,126 @@
   padding: 9px 11px 9px 18px;
   border-radius: 999px;
 
-  /* --- Liquid Glass core --- */
-  /* Tint is set by --tint below (per type) */
+  /* ===== knobs ===== */
+  --glass: 0.12;     /* base glass amount (lower = more transparent) */
+  --tint: 0.16;      /* tint amount (lower = more transparent) */
+
+  /* Base material: transparent glass + tinted wash + highlight */
   background:
-    /* subtle inner bloom */
-    radial-gradient(120% 140% at 20% 15%,
+    /* top-left specular bloom */
+    radial-gradient(120% 140% at 18% 10%,
       rgba(255,255,255,0.55) 0%,
       rgba(255,255,255,0.18) 28%,
-      rgba(255,255,255,0.00) 60%
+      rgba(255,255,255,0.00) 62%
     ),
-    /* main tinted glass body */
+    /* gentle bottom-right depth */
+    radial-gradient(140% 180% at 80% 120%,
+      rgba(0,0,0,0.16) 0%,
+      rgba(0,0,0,0.00) 55%
+    ),
+    /* tinted glass body (NO purple/iridescence) */
     linear-gradient(135deg,
-      rgba(var(--tint), 0.26) 0%,
-      rgba(var(--tint), 0.16) 50%,
-      rgba(var(--tint), 0.10) 100%
+      rgba(var(--tint-rgb), var(--tint)) 0%,
+      rgba(var(--tint-rgb), calc(var(--tint) * 0.75)) 55%,
+      rgba(var(--tint-rgb), calc(var(--tint) * 0.55)) 100%
     ),
-    /* very faint iridescent sweep */
-    conic-gradient(from 210deg at 30% 30%,
-      rgba(124,77,255,0.14),
-      rgba(79,124,255,0.12),
-      rgba(13,148,136,0.10),
-      rgba(255,255,255,0.00),
-      rgba(124,77,255,0.14)
-    );
+    /* clear base */
+    rgba(255,255,255,var(--glass));
 
-  background-blend-mode: screen, normal, soft-light;
+  background-blend-mode: screen, multiply, normal, normal;
 
-  /* Apple-glass depth cues */
+  /* “Liquid Glass” cues */
   box-shadow:
-    0 14px 34px rgba(15,23,42,0.16),
+    0 14px 34px rgba(15,23,42,0.14),
     inset 0 1px 0 rgba(255,255,255,0.55),
     inset 0 -1px 0 rgba(255,255,255,0.18);
 
-  /* “material” */
-  backdrop-filter: blur(14px) saturate(190%) contrast(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(190%) contrast(1.05);
+  /* glassiness */
+  backdrop-filter: blur(16px) saturate(180%) contrast(1.05);
+  -webkit-backdrop-filter: blur(16px) saturate(180%) contrast(1.05);
 
-  /* no border (but we keep definition via rim highlight/shadows) */
   border: none;
-
-  color: rgb(var(--ink));
+  color: rgb(var(--ink-rgb));
   white-space: nowrap;
   pointer-events: none;
-  overflow: hidden; /* needed for the moving sheen */
+  overflow: hidden;
 }
 
-/* Specular rim highlight */
+/* Rim “edge light” */
 .sca-portal .portal-badge::before{
-  content: "";
-  position: absolute;
-  inset: 0;
+  content:"";
+  position:absolute;
+  inset:0;
   border-radius: inherit;
-  pointer-events: none;
+  pointer-events:none;
 
-  background: linear-gradient(135deg,
-    rgba(255,255,255,0.55) 0%,
-    rgba(255,255,255,0.10) 35%,
-    rgba(255,255,255,0.00) 70%
-  );
+  background:
+    linear-gradient(135deg,
+      rgba(255,255,255,0.60) 0%,
+      rgba(255,255,255,0.10) 38%,
+      rgba(255,255,255,0.00) 72%
+    );
   opacity: 0.55;
   mix-blend-mode: screen;
 }
 
-/* Moving “liquid” sheen streak */
+/* Moving sheen (more “liquid”) */
 .sca-portal .portal-badge::after{
-  content: "";
-  position: absolute;
-  inset: -40%;
+  content:"";
+  position:absolute;
+  inset:-55%;
   border-radius: inherit;
-  pointer-events: none;
+  pointer-events:none;
 
-  background: radial-gradient(circle at 20% 30%,
-    rgba(255,255,255,0.32) 0%,
-    rgba(255,255,255,0.10) 22%,
-    rgba(255,255,255,0.00) 55%
-  );
+  background:
+    radial-gradient(circle at 25% 35%,
+      rgba(255,255,255,0.36) 0%,
+      rgba(255,255,255,0.12) 20%,
+      rgba(255,255,255,0.00) 52%
+    );
 
-  transform: translateX(-25%);
+  transform: translateX(-30%) rotate(8deg);
   opacity: 0.55;
-  filter: blur(0.6px);
-  animation: badgeSheen 4.5s ease-in-out infinite;
+  filter: blur(0.7px);
+  animation: badgeSheen 4.2s ease-in-out infinite;
 }
 
 @keyframes badgeSheen{
-  0%   { transform: translateX(-28%) translateY(-2%); opacity: 0.45; }
-  50%  { transform: translateX(18%)  translateY(2%);  opacity: 0.70; }
-  100% { transform: translateX(-28%) translateY(-2%); opacity: 0.45; }
+  0%   { transform: translateX(-32%) translateY(-2%) rotate(8deg);  opacity: 0.40; }
+  50%  { transform: translateX(20%)  translateY(2%)  rotate(8deg);  opacity: 0.78; }
+  100% { transform: translateX(-32%) translateY(-2%) rotate(8deg);  opacity: 0.40; }
 }
 
 @media (prefers-reduced-motion: reduce){
   .sca-portal .portal-badge::after{ animation: none; }
 }
 
-/* ======================================================
-   Badge color presets (set tint + ink)
-   ====================================================== */
+/* ===== Badge presets ===== */
 
+/* NEW CASE — blue */
 .sca-portal .portal-badge--new-case{
-  --tint: 29, 78, 216;   /* blue */
-  --ink:  29, 78, 216;
+  --tint-rgb: 29, 78, 216;
+  --ink-rgb:  29, 78, 216;
 }
 
+/* NEW VIDEO — purple (only this one is purple) */
 .sca-portal .portal-badge--new-video{
-  --tint: 124, 77, 255;  /* purple */
-  --ink:  124, 77, 255;
+  --tint-rgb: 124, 77, 255;
+  --ink-rgb:  124, 77, 255;
 }
 
+/* UPDATED — navy */
 .sca-portal .portal-badge--updated{
-  --tint: 28, 43, 74;    /* navy */
-  --ink:  28, 43, 74;
+  --tint-rgb: 28, 43, 74;
+  --ink-rgb:  28, 43, 74;
+
+  /* make UPDATED even more transparent if you want */
+  --tint: 0.14;
+  --glass: 0.10;
 }
 
+/* NEW FEATURES — teal */
 .sca-portal .portal-badge--new-features{
-  --tint: 13, 148, 136;  /* teal */
-  --ink:  13, 148, 136;
+  --tint-rgb: 13, 148, 136;
+  --ink-rgb:  13, 148, 136;
 }
