@@ -736,3 +736,37 @@
   );
   opacity: 0.75;
 }
+
+/* =========================
+   Badge colours by type
+   ========================= */
+
+/* Default (UPDATED) = bright blue */
+.sca-portal .portal-badge{
+  --badge-rgb: 29, 78, 216; /* blue */
+  background: rgba(var(--badge-rgb), var(--alpha));
+}
+
+/* NEW FEATURES = purple */
+.sca-portal .portal-badge--new-features{
+  --badge-rgb: 124, 77, 255; /* purple */
+}
+
+/* NEW CASE = red */
+.sca-portal .portal-badge--new-case{
+  --badge-rgb: 239, 68, 68; /* red */
+}
+
+/* NEW VIDEO = green */
+.sca-portal .portal-badge--new-video{
+  --badge-rgb: 34, 197, 94; /* green */
+}
+
+/* Make the glow match the badge colour */
+.sca-portal .portal-badge{
+  box-shadow:
+    0 12px 26px rgba(15,23,42,0.18),
+    0 10px 22px rgba(var(--badge-rgb), 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 -1px 0 rgba(0,0,0,0.22);
+}
