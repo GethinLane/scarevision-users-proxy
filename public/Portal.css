@@ -845,16 +845,18 @@
   );
 }
 
-/* UPDATED — darker navy tint (force override) */
+/* === FORCE UPDATED navy + glass sheen (must be last) === */
 .sca-portal .card[data-badge-type="updated"]::after{
   color: #1c2b4a !important;
   background: linear-gradient(135deg,
-    rgba(255,255,255,0.18) 0%,
-    rgba(28,43,74,0.18) 45%,
-    rgba(28,43,74,0.10) 75%,
+    rgba(255,255,255,0.22) 0%,
+    rgba(28,43,74,0.22) 45%,
+    rgba(28,43,74,0.12) 75%,
     rgba(255,255,255,0.10) 100%
   ) !important;
+  border: none !important;
 }
+
 
 
 
