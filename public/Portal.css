@@ -676,7 +676,7 @@
 
 
 /* ======================================================
-   PORTAL BADGE — Vivid navy glass + dark tint + frost (NO blend-modes)
+   PORTAL BADGE — Vivid navy glass (actually transparent)
    ====================================================== */
 
 .sca-portal .card{ position: relative; overflow: visible; }
@@ -702,35 +702,26 @@
   white-space: nowrap;
   overflow: hidden;
 
-  /* VIVID base colour stays vivid */
-  background: #253551;
+  /* KNOBS */
+  --alpha: 0.86;   /* transparency of navy (0.70–0.92) */
+  --frost: 1px;   /* blur amount (8–16px) */
 
-  /* Frosted background behind the badge */
-  backdrop-filter: blur(1px) saturate(140%) contrast(1.05);
-  -webkit-backdrop-filter: blur(1px) saturate(140%) contrast(1.05);
+  /* THIS is the transparency: use RGBA not hex */
+  background: rgba(37,53,81,var(--alpha));
 
-  /* Lift + subtle inner shine */
+  backdrop-filter: blur(var(--frost)) saturate(135%);
+  -webkit-backdrop-filter: blur(var(--frost)) saturate(135%);
+
   box-shadow:
     0 12px 26px rgba(15,23,42,0.18),
     inset 0 1px 0 rgba(255,255,255,0.16),
-    inset 0 -1px 0 rgba(0,0,0,0.20);
+    inset 0 -1px 0 rgba(0,0,0,0.22);
 
-  /* Tiny edge so it reads as “glass” not a flat sticker */
   outline: 1px solid rgba(255,255,255,0.10);
   outline-offset: -1px;
 }
 
-/* Dark tint layer: this is what “tints everything behind” */
-.sca-portal .portal-badge::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius: inherit;
-  pointer-events:none;
-  background: rgba(0,0,0,0.01);  /* <-- tint strength (0.12–0.32) */
-}
-
-/* Specular sheen: makes it feel glassy */
+/* soft highlight so it reads “frosted/glass” */
 .sca-portal .portal-badge::after{
   content:"";
   position:absolute;
@@ -738,7 +729,7 @@
   border-radius: inherit;
   pointer-events:none;
   background: linear-gradient(135deg,
-    rgba(255,255,255,0.22) 0%,
+    rgba(255,255,255,0.18) 0%,
     rgba(255,255,255,0.06) 35%,
     rgba(255,255,255,0.00) 70%
   );
