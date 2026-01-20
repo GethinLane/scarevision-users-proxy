@@ -356,6 +356,9 @@ Premature Ovarian Failure	348	"Gender, reproductive and sexual health, including
 Psoriatic Arthritis	349	"Long-term condition, including cancer, multi-morbidity, and disability", New presentation of undifferentiated disease	Musculoskeletal Health, Dermatology
 Schizophrenia Relapse	350	"Mental health, including addiction, smoking, alcohol, substance misuse"	Mental Health
 Thrombocytosis: Lung Ca	351	Investigation / Results, New presentation of undifferentiated disease	Respiratory Health, Haematology
+DVT risk in travellers	352	Prescribing, "Long-term condition, including cancer, multi-morbidity, and disability"	Haematology
+LD: Constipation & Safeguarding	353	"Health disadvantage and vulnerabilities, including veterans, mental capacity, safeguarding, and communication difficulties"	Learning Disability, Gastroenterology
+
   `;
 
   // ---- Canonical lists ----
