@@ -1,0 +1,189 @@
+/* =========================================================
+   HOME ONLY — "What's Included" cards (no Portal.css needed)
+   Scope: .home-portal ...
+   ========================================================= */
+
+.home-portal{
+  --card-bg: #ffffff;
+  --navy: #253551;
+  --navy-soft: #1f2e4a;
+  --text: #1b2130;
+  --muted: #6c7485;
+  --radius-lg: 18px;
+
+  width: 100%;
+  color: var(--text);
+  font-size: clamp(16px, 1.05vw, 18px);
+  line-height: 1.7;
+
+  background: transparent; /* you wanted no page background */
+}
+
+.home-portal *{ box-sizing: border-box; }
+
+/* Keep content comfortably sized */
+.home-portal .page{
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (max-width: 640px){
+  .home-portal .page{
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* ===== What's Included section (full width) ===== */
+.home-portal .sca-included{
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (max-width: 640px){
+  .home-portal .sca-included{
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* Heading */
+.home-portal .sca-included h2{
+  text-align: center;
+  margin: 0 0 60px;
+  color: var(--navy);
+}
+
+/* Grid */
+.home-portal .sca-included-grid{
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* Responsive columns */
+@media (max-width: 1100px){
+  .home-portal .sca-included-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px){
+  .home-portal .sca-included-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px){
+  .home-portal .sca-included-grid{ grid-template-columns: 1fr; }
+}
+
+/* ===== Cards ===== */
+.home-portal .sca-included-card{
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(148,163,184,0.18);
+  box-shadow: 0 12px 30px rgba(15,23,42,0.06);
+  padding: 22px 18px 18px;
+
+  display: flex;
+  flex-direction: column;
+
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  position: relative; /* for overlay link */
+  overflow: hidden;
+}
+
+/* Force equal heights across the whole grid */
+@media (min-width: 1101px){
+  .home-portal .sca-included-card{ height: 360px; }
+}
+@media (max-width: 1100px){
+  .home-portal .sca-included-card{ height: 360px; }
+}
+@media (max-width: 900px){
+  .home-portal .sca-included-card{ height: 340px; }
+}
+@media (max-width: 640px){
+  .home-portal .sca-included-card{
+    height: auto;
+    min-height: 260px;
+  }
+}
+
+.home-portal .sca-included-card:hover{
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px rgba(15,23,42,0.14);
+  border-color: rgba(37,99,235,0.35);
+}
+
+/* Whole-card clickable overlay */
+.home-portal .sca-card-link{
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+}
+
+/* Keep content visible (overlay sits above for clicks, but content is still visible) */
+.home-portal .card-head,
+.home-portal .card-body{
+  position: relative;
+  z-index: 2;
+}
+
+/* Card header: icon above title */
+.home-portal .card-head{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+
+  border-bottom: none;
+  padding-bottom: 0;
+  min-height: auto;
+}
+
+/* Icon (no box) */
+.home-portal .card-icon{
+  order: -1;
+  margin-bottom: 28px;
+
+  width: auto;
+  height: auto;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  transform: none;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-portal .card-icon i{
+  color: var(--navy);
+  font-size: clamp(56px, 5.2vw, 96px);
+  line-height: 1;
+}
+
+/* Title + body */
+.home-portal .card-title{
+  margin: 0;
+  color: var(--navy);
+  font-weight: 750;
+  font-size: 1.15rem;
+  line-height: 1.18;
+  text-align: center;
+}
+
+.home-portal .card-body{
+  margin: 14px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+  text-align: left;
+  flex: 1; /* keeps spacing consistent inside fixed-height cards */
+}
+
+/* Optional: cursor hint */
+.home-portal .sca-included-card{ cursor: pointer; }
