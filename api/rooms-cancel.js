@@ -17,6 +17,7 @@ function send(req, res, status, data) {
 
 async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   const url = `https://api.airtable.com/v0/${baseId}/${path}`;
+
   const r = await fetch(url, {
     method,
     headers: {
@@ -28,9 +29,43 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
 
   const text = await r.text();
   let data;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
 
-  if (!r.ok) throw new Error(data?.error?.message || text || "Airtable error");
+  if (!r.ok) {
+    const msg = data?.error?.message || text || `Airtable error (${r.status})`;
+    const type = data?.error?.type || "unknown";
+    throw new Error(`${type}: ${msg}`);
+  }
+
+  return data;
+}
+
+async function airtableDelete({ baseId, token, table, recordId }) {
+  const url = `https://api.airtable.com/v0/${baseId}/${table}/${recordId}`;
+
+  const r = await fetch(url, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const text = await r.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!r.ok) {
+    const msg = data?.error?.message || text || `Airtable error (${r.status})`;
+    const type = data?.error?.type || "unknown";
+    throw new Error(`${type}: ${msg}`);
+  }
+
   return data;
 }
 
@@ -46,53 +81,46 @@ export default async function handler(req, res) {
     const baseId = process.env.AIRTABLE_USERS_BASE_ID;
     if (!token || !baseId) return send(req, res, 500, { ok: false, error: "Server not configured" });
 
-    const { userRecordId } = req.body || {};
-    if (!userRecordId) return send(req, res, 400, { ok: false, error: "Missing userRecordId" });
+    const { attendeeId, sessionId, userRecordId } = req.body || {};
 
-    // 1) Get attendee records for this user where CommitStatus=Committed
-    const att = await airtableRequest({
+    // ✅ Preferred: delete by attendeeId
+    if (attendeeId) {
+      await airtableDelete({
+        baseId,
+        token,
+        table: "SessionAttendees",
+        recordId: attendeeId,
+      });
+
+      return send(req, res, 200, { ok: true });
+    }
+
+    // ✅ Fallback: if you ever only have sessionId+userRecordId, find the attendee row then delete it
+    if (!sessionId || !userRecordId) {
+      return send(req, res, 400, { ok: false, error: "Missing attendeeId (or sessionId + userRecordId)" });
+    }
+
+    const found = await airtableRequest({
       baseId,
       token,
       path: `SessionAttendees?filterByFormula=${encodeURIComponent(
-        `AND(FIND("${userRecordId}", ARRAYJOIN({User})), {CommitStatus}="Committed")`
+        `AND(FIND("${sessionId}", ARRAYJOIN({Session})), FIND("${userRecordId}", ARRAYJOIN({User})))`
       )}`,
     });
 
-    const attendeeRecords = att.records || [];
-    if (!attendeeRecords.length) return send(req, res, 200, { ok: true, commitments: [] });
+    const recId = found?.records?.[0]?.id;
+    if (!recId) return send(req, res, 404, { ok: false, error: "Commitment not found" });
 
-    // Extract session IDs
-    const sessionIds = attendeeRecords
-      .map(r => (Array.isArray(r.fields?.Session) ? r.fields.Session[0] : null))
-      .filter(Boolean);
-
-    // 2) Fetch sessions in one go using OR(RECORD_ID()=...)
-    const or = sessionIds.slice(0, 50).map(id => `RECORD_ID()="${id}"`).join(",");
-    const sess = await airtableRequest({
+    await airtableDelete({
       baseId,
       token,
-      path: `Sessions?filterByFormula=${encodeURIComponent(`OR(${or})`)}`,
+      table: "SessionAttendees",
+      recordId: recId,
     });
 
-    const sessionMap = new Map((sess.records || []).map(s => [s.id, s]));
-
-    const commitments = attendeeRecords.map(a => {
-      const sid = Array.isArray(a.fields?.Session) ? a.fields.Session[0] : null;
-      const s = sessionMap.get(sid);
-      return {
-        attendeeId: a.id,
-        sessionId: sid,
-        start: s?.fields?.Start,
-        end: s?.fields?.End,
-        topic: s?.fields?.Topic || "",
-        platform: s?.fields?.Platform || "",
-        status: s?.fields?.Status || "",
-      };
-    });
-
-    return send(req, res, 200, { ok: true, commitments });
+    return send(req, res, 200, { ok: true });
   } catch (err) {
-    console.error("rooms-my error:", err);
-    return send(req, res, 500, { ok: false, error: err.message });
+    console.error("rooms-cancel error:", err);
+    return send(req, res, 500, { ok: false, error: err.message || "Server error" });
   }
 }
