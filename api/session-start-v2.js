@@ -146,7 +146,13 @@ export default async function handler(req, res) {
     );
 
     // ✅ ALSO return token for Bearer auth fallback
-    return send(req, res, 200, { ok: true, token: sessionToken, exp });
+    return send(req, res, 200, {
+  ok: true,
+  token: sessionToken,
+  exp,
+  userRecordId: recordId, // ✅ NEW (safe)
+});
+
   } catch (err) {
     return send(req, res, 500, { ok: false, error: err.message || "Server error" });
   }
