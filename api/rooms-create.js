@@ -111,7 +111,7 @@ export default async function handler(req, res) {
 
           // ✅ NEW fields
           Topic: topic || "",
-          RoomType: roomType || "ActiveNow",
+        
 
           MaxParticipants: 3,
         },
