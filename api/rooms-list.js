@@ -2,15 +2,25 @@ const ALLOWED_ORIGINS = ["https://www.scarevision.co.uk", "https://scarevision.c
 
 function setCors(req, res) {
   const origin = req.headers.origin;
-  if (ALLOWED_ORIGINS.includes(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
+function send(req, res, status, data) {
+  setCors(req, res);
+  return res.status(status).json(data);
 }
 
 async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   const url = `https://api.airtable.com/v0/${baseId}/${path}`;
+
   const r = await fetch(url, {
     method,
     headers: {
@@ -26,18 +36,26 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "POST") return res.status(405).json({ ok: false });
+
+  // ✅ OPTIONS preflight must include CORS headers
+  if (req.method === "OPTIONS") {
+    setCors(req, res);
+    return res.status(204).end();
+  }
+
+  // ✅ Always use send() so CORS headers are attached
+  if (req.method !== "POST") {
+    return send(req, res, 405, { ok: false, error: "Use POST" });
+  }
 
   try {
     const token = process.env.AIRTABLE_USERS_TOKEN;
     const baseId = process.env.AIRTABLE_USERS_BASE_ID;
-    const sessionsTable = "Sessions";
 
     const resp = await airtableRequest({
       baseId,
       token,
-      path: `${sessionsTable}?filterByFormula=${encodeURIComponent(
+      path: `Sessions?filterByFormula=${encodeURIComponent(
         `AND({Status}="Open",{End}>NOW())`
       )}`,
     });
@@ -52,8 +70,9 @@ export default async function handler(req, res) {
       maxParticipants: r.fields.MaxParticipants || 3,
     }));
 
-    return res.json({ ok: true, rooms });
+    return send(req, res, 200, { ok: true, rooms });
+
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err.message });
+    return send(req, res, 500, { ok: false, error: err.message });
   }
 }
