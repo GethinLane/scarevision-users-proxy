@@ -87,7 +87,7 @@ export default async function handler(req, res) {
 
       // ✅ NEW fields for UI
       topic: r.fields.Topic || "",
-      roomType: r.fields.RoomType || "ActiveNow",
+      
 
       attendeeCount: r.fields.AttendeeCount || 0,
       spotsLeft: r.fields.SpotsLeft || 0,
