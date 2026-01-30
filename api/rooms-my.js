@@ -165,16 +165,22 @@ export default async function handler(req, res) {
       const sid = Array.isArray(a.fields?.Session) ? a.fields.Session[0] : null;
       const s = sessionMap.get(sid);
 
-      return {
-        attendeeId: a.id,
-        sessionId: sid,
-        start: s?.fields?.Start,
-        end: s?.fields?.End,
-        topic: s?.fields?.Topic || "",
-        platform: s?.fields?.Platform || "",
-        status: s?.fields?.Status || "",
-        commitStatus: a.fields?.CommitStatus || "",
-      };
+const hostArr = s?.fields?.HostUser;
+const isHost = Array.isArray(hostArr) && hostArr.includes(userRecordId);
+
+return {
+  attendeeId: a.id,
+  sessionId: sid,
+  start: s?.fields?.Start,
+  end: s?.fields?.End,
+  topic: s?.fields?.Topic || "",
+  platform: s?.fields?.Platform || "",
+  status: s?.fields?.Status || "",
+  meetingLink: s?.fields?.MeetingLink || "",
+  isHost,
+  commitStatus: a.fields?.CommitStatus || "",
+};
+
     });
 
     debugOut.stage = "done";
