@@ -17,6 +17,7 @@ function send(req, res, status, data) {
 
 async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   const url = `https://api.airtable.com/v0/${baseId}/${path}`;
+
   const r = await fetch(url, {
     method,
     headers: {
@@ -34,6 +35,10 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   return data;
 }
 
+function norm(v) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     setCors(req, res);
@@ -49,31 +54,50 @@ export default async function handler(req, res) {
     const { userRecordId } = req.body || {};
     if (!userRecordId) return send(req, res, 400, { ok: false, error: "Missing userRecordId" });
 
-    // 1) Fetch attendee rows for this user (ONLY filter by User)
+    // Pull recent attendee rows (avoid filterByFormula surprises with linked fields)
+    // This is MVP-safe; increase pageSize if you want.
     const att = await airtableRequest({
       baseId,
       token,
-      path: `SessionAttendees?filterByFormula=${encodeURIComponent(
-        `FIND("${userRecordId}", ARRAYJOIN({User}))`
-      )}`,
+      path: `SessionAttendees?pageSize=200&sort%5B0%5D%5Bfield%5D=Created&sort%5B0%5D%5Bdirection%5D=desc`,
     });
 
-    // 2) Filter in code (more reliable than Airtable formula)
-    const attendeeRecords = (att.records || []).filter(r => {
-      const cs = r.fields?.CommitStatus;
-      return cs === "Committed"; // Only show commitments
+    const all = att.records || [];
+
+    // IMPORTANT: Airtable returns linked fields as ARRAYS of recordIds
+    const mine = all.filter(r => {
+      const users = r.fields?.User; // expects linked field name is "User"
+      return Array.isArray(users) && users.includes(userRecordId);
     });
 
-    if (!attendeeRecords.length) {
-      return send(req, res, 200, { ok: true, commitments: [] });
+    const committed = mine.filter(r => norm(r.fields?.CommitStatus) === "committed");
+
+    // If your linked field is NOT called "User", we want to detect it quickly:
+    // We'll include the available field keys from the first record as debug.
+    const debugFieldKeys = all[0]?.fields ? Object.keys(all[0].fields) : [];
+
+    if (!committed.length) {
+      return send(req, res, 200, {
+        ok: true,
+        commitments: [],
+        debug: {
+          fetchedAttendees: all.length,
+          matchedByUser: mine.length,
+          matchedByCommitStatus: committed.length,
+          sampleCommitStatusValues: mine.slice(0, 5).map(r => r.fields?.CommitStatus),
+          sampleUserArrays: mine.slice(0, 3).map(r => r.fields?.User),
+          firstRecordFieldKeys: debugFieldKeys,
+          note:
+            "If matchedByUser is 0, your linked field probably isn't named 'User' or the attendee rows link to a different Users table.",
+        },
+      });
     }
 
-    // Extract session IDs
-    const sessionIds = attendeeRecords
+    // Fetch sessions for matched commitments
+    const sessionIds = committed
       .map(r => (Array.isArray(r.fields?.Session) ? r.fields.Session[0] : null))
       .filter(Boolean);
 
-    // 3) Fetch the session records in one go
     const or = sessionIds.slice(0, 50).map(id => `RECORD_ID()="${id}"`).join(",");
     const sess = await airtableRequest({
       baseId,
@@ -83,7 +107,7 @@ export default async function handler(req, res) {
 
     const sessionMap = new Map((sess.records || []).map(s => [s.id, s]));
 
-    const commitments = attendeeRecords.map(a => {
+    const commitments = committed.map(a => {
       const sid = Array.isArray(a.fields?.Session) ? a.fields.Session[0] : null;
       const s = sessionMap.get(sid);
 
@@ -95,10 +119,19 @@ export default async function handler(req, res) {
         topic: s?.fields?.Topic || "",
         platform: s?.fields?.Platform || "",
         status: s?.fields?.Status || "",
+        commitStatus: a.fields?.CommitStatus || "",
       };
     });
 
-    return send(req, res, 200, { ok: true, commitments });
+    return send(req, res, 200, {
+      ok: true,
+      commitments,
+      debug: {
+        fetchedAttendees: all.length,
+        matchedByUser: mine.length,
+        matchedByCommitStatus: committed.length,
+      },
+    });
   } catch (err) {
     console.error("rooms-my error:", err);
     return send(req, res, 500, { ok: false, error: err.message });
