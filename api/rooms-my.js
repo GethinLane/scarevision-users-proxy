@@ -31,7 +31,12 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   let data;
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
 
-  if (!r.ok) throw new Error(data?.error?.message || text || "Airtable error");
+  if (!r.ok) {
+    const msg = data?.error?.message || text || `Airtable error (${r.status})`;
+    const type = data?.error?.type || "unknown";
+    throw new Error(`${type}: ${msg}`);
+  }
+
   return data;
 }
 
@@ -54,27 +59,20 @@ export default async function handler(req, res) {
     const { userRecordId } = req.body || {};
     if (!userRecordId) return send(req, res, 400, { ok: false, error: "Missing userRecordId" });
 
-    // Pull recent attendee rows (avoid filterByFormula surprises with linked fields)
-    // This is MVP-safe; increase pageSize if you want.
+    // ✅ Sort by your actual field name: CreatedAt
     const att = await airtableRequest({
       baseId,
       token,
-      path: `SessionAttendees?pageSize=200&sort%5B0%5D%5Bfield%5D=Created&sort%5B0%5D%5Bdirection%5D=desc`,
+      path: `SessionAttendees?pageSize=200&sort%5B0%5D%5Bfield%5D=${encodeURIComponent(
+        "CreatedAt"
+      )}&sort%5B0%5D%5Bdirection%5D=desc`,
     });
 
     const all = att.records || [];
 
-    // IMPORTANT: Airtable returns linked fields as ARRAYS of recordIds
-    const mine = all.filter(r => {
-      const users = r.fields?.User; // expects linked field name is "User"
-      return Array.isArray(users) && users.includes(userRecordId);
-    });
-
-    const committed = mine.filter(r => norm(r.fields?.CommitStatus) === "committed");
-
-    // If your linked field is NOT called "User", we want to detect it quickly:
-    // We'll include the available field keys from the first record as debug.
-    const debugFieldKeys = all[0]?.fields ? Object.keys(all[0].fields) : [];
+    // Linked record fields come back as arrays of recordIds
+    const mine = all.filter((r) => Array.isArray(r.fields?.User) && r.fields.User.includes(userRecordId));
+    const committed = mine.filter((r) => norm(r.fields?.CommitStatus) === "committed");
 
     if (!committed.length) {
       return send(req, res, 200, {
@@ -84,30 +82,26 @@ export default async function handler(req, res) {
           fetchedAttendees: all.length,
           matchedByUser: mine.length,
           matchedByCommitStatus: committed.length,
-          sampleCommitStatusValues: mine.slice(0, 5).map(r => r.fields?.CommitStatus),
-          sampleUserArrays: mine.slice(0, 3).map(r => r.fields?.User),
-          firstRecordFieldKeys: debugFieldKeys,
-          note:
-            "If matchedByUser is 0, your linked field probably isn't named 'User' or the attendee rows link to a different Users table.",
+          sampleCommitStatusValues: mine.slice(0, 5).map((r) => r.fields?.CommitStatus),
+          firstRecordFieldKeys: all[0]?.fields ? Object.keys(all[0].fields) : [],
         },
       });
     }
 
-    // Fetch sessions for matched commitments
     const sessionIds = committed
-      .map(r => (Array.isArray(r.fields?.Session) ? r.fields.Session[0] : null))
+      .map((r) => (Array.isArray(r.fields?.Session) ? r.fields.Session[0] : null))
       .filter(Boolean);
 
-    const or = sessionIds.slice(0, 50).map(id => `RECORD_ID()="${id}"`).join(",");
+    const or = sessionIds.slice(0, 50).map((id) => `RECORD_ID()="${id}"`).join(",");
     const sess = await airtableRequest({
       baseId,
       token,
       path: `Sessions?filterByFormula=${encodeURIComponent(`OR(${or})`)}`,
     });
 
-    const sessionMap = new Map((sess.records || []).map(s => [s.id, s]));
+    const sessionMap = new Map((sess.records || []).map((s) => [s.id, s]));
 
-    const commitments = committed.map(a => {
+    const commitments = committed.map((a) => {
       const sid = Array.isArray(a.fields?.Session) ? a.fields.Session[0] : null;
       const s = sessionMap.get(sid);
 
@@ -134,6 +128,6 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error("rooms-my error:", err);
-    return send(req, res, 500, { ok: false, error: err.message });
+    return send(req, res, 500, { ok: false, error: err.message || "Server error" });
   }
 }
