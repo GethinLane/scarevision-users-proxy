@@ -15,7 +15,7 @@ function send(req, res, status, data) {
   return res.status(status).json(data);
 }
 
-// Airtable request that NEVER hides raw responses
+// Airtable request that never hides raw responses
 async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   const url = `https://api.airtable.com/v0/${baseId}/${path}`;
 
@@ -59,6 +59,35 @@ function norm(v) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+// Fetch multiple pages from Airtable safely (max pageSize=100)
+async function fetchAllAttendees({ baseId, token, sortField = "CreatedAt", limit = 300 }) {
+  const pageSizeMax = 100;
+  let all = [];
+  let offset = null;
+
+  while (all.length < limit) {
+    const remaining = limit - all.length;
+    const pageSize = Math.min(pageSizeMax, remaining);
+
+    const basePath =
+      `SessionAttendees?pageSize=${pageSize}` +
+      `&sort%5B0%5D%5Bfield%5D=${encodeURIComponent(sortField)}` +
+      `&sort%5B0%5D%5Bdirection%5D=desc`;
+
+    const path = offset ? `${basePath}&offset=${encodeURIComponent(offset)}` : basePath;
+
+    const resp = await airtableRequest({ baseId, token, path });
+
+    const records = Array.isArray(resp.records) ? resp.records : [];
+    all = all.concat(records);
+
+    if (!resp.offset) break;
+    offset = resp.offset;
+  }
+
+  return all;
+}
+
 export default async function handler(req, res) {
   const DEBUG = !!(req.body && req.body.debug);
 
@@ -68,22 +97,17 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  // Only POST
   if (req.method !== "POST") {
     return send(req, res, 405, { ok: false, error: "Use POST" });
   }
 
   const debugOut = {
     stage: "start",
-    env: {
-      hasToken: false,
-      hasBaseId: false,
-    },
-    request: {
-      hasUserRecordId: false,
-      userRecordId: null,
-    },
-    airtable: {},
+    env: { hasToken: false, hasBaseId: false },
+    request: { userRecordId: null },
+    attendees: {},
+    matching: {},
+    sessions: {},
   };
 
   try {
@@ -99,7 +123,6 @@ export default async function handler(req, res) {
     }
 
     const { userRecordId } = req.body || {};
-    debugOut.request.hasUserRecordId = !!userRecordId;
     debugOut.request.userRecordId = DEBUG ? userRecordId : null;
 
     if (!userRecordId) {
@@ -108,64 +131,49 @@ export default async function handler(req, res) {
     }
 
     // ------------------------------------------------------------
-    // 1) Pull attendee rows (sorted by CreatedAt)
+    // 1) Fetch attendees (paged) sorted by CreatedAt
     // ------------------------------------------------------------
     debugOut.stage = "fetch_attendees";
 
-    const attendeesPath =
-      `SessionAttendees?pageSize=200` +
-      `&sort%5B0%5D%5Bfield%5D=${encodeURIComponent("CreatedAt")}` +
-      `&sort%5B0%5D%5Bdirection%5D=desc`;
-
-    const att = await airtableRequest({
+    const all = await fetchAllAttendees({
       baseId,
       token,
-      path: attendeesPath,
+      sortField: "CreatedAt",
+      limit: 300,
     });
 
-    const all = Array.isArray(att.records) ? att.records : [];
-
-    debugOut.airtable.attendees = {
-      path: attendeesPath,
-      totalFetched: all.length,
-      firstRecordFieldKeys: all[0]?.fields ? Object.keys(all[0].fields) : [],
-      firstRecordFieldsSample: DEBUG ? all[0]?.fields : undefined,
-    };
+    debugOut.attendees.totalFetched = all.length;
+    debugOut.attendees.firstRecordFieldKeys = all[0]?.fields ? Object.keys(all[0].fields) : [];
+    debugOut.attendees.firstRecordFieldsSample = DEBUG ? all[0]?.fields : undefined;
 
     // ------------------------------------------------------------
-    // 2) Match by linked User array
+    // 2) Match this user (linked field "User" must contain recordId)
     // ------------------------------------------------------------
     debugOut.stage = "filter_by_user";
 
     const mine = all.filter((r) => Array.isArray(r.fields?.User) && r.fields.User.includes(userRecordId));
 
-    debugOut.airtable.matching = {
-      matchedByUser: mine.length,
-      sampleUserArrays: DEBUG ? mine.slice(0, 3).map((r) => r.fields?.User) : undefined,
-      sampleCommitStatuses: DEBUG ? mine.slice(0, 5).map((r) => r.fields?.CommitStatus) : undefined,
-      sampleSessionArrays: DEBUG ? mine.slice(0, 3).map((r) => r.fields?.Session) : undefined,
-    };
+    debugOut.matching.matchedByUser = mine.length;
+    debugOut.matching.sampleUserArrays = DEBUG ? mine.slice(0, 3).map((r) => r.fields?.User) : undefined;
+    debugOut.matching.sampleCommitStatuses = DEBUG ? mine.slice(0, 8).map((r) => r.fields?.CommitStatus) : undefined;
+    debugOut.matching.sampleSessionArrays = DEBUG ? mine.slice(0, 3).map((r) => r.fields?.Session) : undefined;
 
     // ------------------------------------------------------------
-    // 3) Filter commitments
+    // 3) Only commitments (CommitStatus == Committed)
     // ------------------------------------------------------------
     debugOut.stage = "filter_committed";
 
     const committed = mine.filter((r) => norm(r.fields?.CommitStatus) === "committed");
 
-    debugOut.airtable.matching.matchedByCommitted = committed.length;
+    debugOut.matching.matchedByCommitted = committed.length;
 
     if (!committed.length) {
       debugOut.stage = "no_commitments_found";
-      return send(req, res, 200, {
-        ok: true,
-        commitments: [],
-        debug: DEBUG ? debugOut : undefined,
-      });
+      return send(req, res, 200, { ok: true, commitments: [], debug: DEBUG ? debugOut : undefined });
     }
 
     // ------------------------------------------------------------
-    // 4) Fetch session records for those commitments
+    // 4) Fetch sessions for those commitments
     // ------------------------------------------------------------
     debugOut.stage = "fetch_sessions";
 
@@ -176,22 +184,16 @@ export default async function handler(req, res) {
     const or = sessionIds.slice(0, 50).map((id) => `RECORD_ID()="${id}"`).join(",");
     const sessionsPath = `Sessions?filterByFormula=${encodeURIComponent(`OR(${or})`)}`;
 
-    debugOut.airtable.sessions = {
-      wantedSessionIds: DEBUG ? sessionIds : undefined,
-      path: sessionsPath,
-    };
+    debugOut.sessions.wantedSessionIds = DEBUG ? sessionIds : undefined;
+    debugOut.sessions.path = sessionsPath;
 
-    const sess = await airtableRequest({
-      baseId,
-      token,
-      path: sessionsPath,
-    });
+    const sess = await airtableRequest({ baseId, token, path: sessionsPath });
 
     const sessions = Array.isArray(sess.records) ? sess.records : [];
     const sessionMap = new Map(sessions.map((s) => [s.id, s]));
 
-    debugOut.airtable.sessions.fetched = sessions.length;
-    debugOut.airtable.sessions.firstSessionFieldsSample = DEBUG ? sessions[0]?.fields : undefined;
+    debugOut.sessions.fetched = sessions.length;
+    debugOut.sessions.firstSessionFieldsSample = DEBUG ? sessions[0]?.fields : undefined;
 
     // ------------------------------------------------------------
     // 5) Build response
@@ -217,10 +219,11 @@ export default async function handler(req, res) {
     debugOut.stage = "done";
     return send(req, res, 200, { ok: true, commitments, debug: DEBUG ? debugOut : undefined });
   } catch (err) {
-    // Always return a JSON error, with Airtable raw error if present
-    debugOut.stage = "error";
+    console.error("rooms-my error:", err);
 
     const airtable = err?._airtable;
+
+    debugOut.stage = "error";
 
     return send(req, res, 500, {
       ok: false,
@@ -234,7 +237,6 @@ export default async function handler(req, res) {
                   statusText: airtable.statusText,
                   method: airtable.method,
                   path: airtable.path,
-                  // url is safe, but verbose; include for completeness in debug mode
                   url: airtable.url,
                   bodyText: airtable.bodyText,
                   bodyJson: airtable.bodyJson,
