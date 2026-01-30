@@ -2,9 +2,7 @@ const ALLOWED_ORIGINS = ["https://www.scarevision.co.uk", "https://scarevision.c
 
 function setCors(req, res) {
   const origin = req.headers.origin;
-  if (ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
+  if (ALLOWED_ORIGINS.includes(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -14,115 +12,51 @@ function setCors(req, res) {
 
 function send(req, res, status, data) {
   setCors(req, res);
-  res.status(status).json(data);
+  return res.status(status).json(data);
 }
 
-async function airtableRequest({ baseId, token, path, method = "GET", body }) {
-  const url = `https://api.airtable.com/v0/${baseId}/${path}`;
-
+async function airtableDelete({ baseId, token, table, recordId }) {
+  const url = `https://api.airtable.com/v0/${baseId}/${table}/${recordId}`;
   const r = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
   });
 
-  const data = await r.json();
-  if (!r.ok) throw new Error(data?.error?.message || "Airtable error");
+  const text = await r.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+
+  if (!r.ok) throw new Error(data?.error?.message || text || "Airtable error");
   return data;
 }
 
 export default async function handler(req, res) {
-  // ✅ Preflight support
   if (req.method === "OPTIONS") {
     setCors(req, res);
     return res.status(204).end();
   }
-
-  if (req.method !== "POST") {
-    return send(req, res, 405, { ok: false, error: "Use POST" });
-  }
+  if (req.method !== "POST") return send(req, res, 405, { ok: false, error: "Use POST" });
 
   try {
     const token = process.env.AIRTABLE_USERS_TOKEN;
     const baseId = process.env.AIRTABLE_USERS_BASE_ID;
+    if (!token || !baseId) return send(req, res, 500, { ok: false, error: "Server not configured" });
 
-    if (!token || !baseId) {
-      return send(req, res, 500, { ok: false, error: "Server not configured" });
-    }
+    const { attendeeId } = req.body || {};
+    if (!attendeeId) return send(req, res, 400, { ok: false, error: "Missing attendeeId" });
 
-    const { sessionId, userRecordId } = req.body || {};
-
-    if (!sessionId) {
-      return send(req, res, 400, { ok: false, error: "Missing sessionId" });
-    }
-
-    if (!userRecordId) {
-      return send(req, res, 400, { ok: false, error: "Missing userRecordId" });
-    }
-
-    // ------------------------------------------------------------
-    // 1. Load Session
-    // ------------------------------------------------------------
-    const session = await airtableRequest({
+    await airtableDelete({
       baseId,
       token,
-      path: `Sessions/${sessionId}`,
+      table: "SessionAttendees",
+      recordId: attendeeId,
     });
 
-    if (session.fields.Status !== "Open") {
-      return send(req, res, 400, {
-        ok: false,
-        error: "Room is not open",
-      });
-    }
-
-    const max = session.fields.MaxParticipants || 3;
-    const count = session.fields.AttendeeCount || 0;
-
-    if (count >= max) {
-      // Mark full
-      await airtableRequest({
-        baseId,
-        token,
-        path: `Sessions/${sessionId}`,
-        method: "PATCH",
-        body: { fields: { Status: "Full" } },
-      });
-
-      return send(req, res, 400, {
-        ok: false,
-        error: "Room is already full",
-      });
-    }
-
-    // ------------------------------------------------------------
-    // 2. Add attendee record
-    // ------------------------------------------------------------
-    await airtableRequest({
-      baseId,
-      token,
-      path: "SessionAttendees",
-      method: "POST",
-      body: {
-        fields: {
-          Session: [sessionId],
-          User: [userRecordId],
-        },
-      },
-    });
-
-    // ------------------------------------------------------------
-    // 3. Return meeting link ONLY after join
-    // ------------------------------------------------------------
-    return send(req, res, 200, {
-      ok: true,
-      meetingLink: session.fields.MeetingLink,
-    });
+    return send(req, res, 200, // Freed spot immediately
+      { ok: true }
+    );
   } catch (err) {
-    console.error("rooms-join error:", err);
+    console.error("rooms-cancel error:", err);
     return send(req, res, 500, { ok: false, error: err.message });
   }
 }
