@@ -49,24 +49,31 @@ export default async function handler(req, res) {
     const { userRecordId } = req.body || {};
     if (!userRecordId) return send(req, res, 400, { ok: false, error: "Missing userRecordId" });
 
-    // 1) Get attendee records for this user where CommitStatus=Committed
+    // 1) Fetch attendee rows for this user (ONLY filter by User)
     const att = await airtableRequest({
       baseId,
       token,
       path: `SessionAttendees?filterByFormula=${encodeURIComponent(
-        `AND(FIND("${userRecordId}", ARRAYJOIN({User})), {CommitStatus}="Committed")`
+        `FIND("${userRecordId}", ARRAYJOIN({User}))`
       )}`,
     });
 
-    const attendeeRecords = att.records || [];
-    if (!attendeeRecords.length) return send(req, res, 200, { ok: true, commitments: [] });
+    // 2) Filter in code (more reliable than Airtable formula)
+    const attendeeRecords = (att.records || []).filter(r => {
+      const cs = r.fields?.CommitStatus;
+      return cs === "Committed"; // Only show commitments
+    });
+
+    if (!attendeeRecords.length) {
+      return send(req, res, 200, { ok: true, commitments: [] });
+    }
 
     // Extract session IDs
     const sessionIds = attendeeRecords
       .map(r => (Array.isArray(r.fields?.Session) ? r.fields.Session[0] : null))
       .filter(Boolean);
 
-    // 2) Fetch sessions in one go using OR(RECORD_ID()=...)
+    // 3) Fetch the session records in one go
     const or = sessionIds.slice(0, 50).map(id => `RECORD_ID()="${id}"`).join(",");
     const sess = await airtableRequest({
       baseId,
@@ -79,6 +86,7 @@ export default async function handler(req, res) {
     const commitments = attendeeRecords.map(a => {
       const sid = Array.isArray(a.fields?.Session) ? a.fields.Session[0] : null;
       const s = sessionMap.get(sid);
+
       return {
         attendeeId: a.id,
         sessionId: sid,
