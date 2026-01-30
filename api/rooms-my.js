@@ -15,7 +15,6 @@ function send(req, res, status, data) {
   return res.status(status).json(data);
 }
 
-// Airtable request that never hides raw responses
 async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   const url = `https://api.airtable.com/v0/${baseId}/${path}`;
 
@@ -40,15 +39,7 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
     const msg = json?.error?.message || text || `Airtable error (${r.status})`;
     const type = json?.error?.type || "unknown";
     const err = new Error(`${type}: ${msg}`);
-    err._airtable = {
-      status: r.status,
-      statusText: r.statusText,
-      bodyText: text,
-      bodyJson: json,
-      url,
-      path,
-      method,
-    };
+    err._airtable = { status: r.status, statusText: r.statusText, url, path, method, bodyText: text, bodyJson: json };
     throw err;
   }
 
@@ -59,8 +50,8 @@ function norm(v) {
   return String(v ?? "").trim().toLowerCase();
 }
 
-// Fetch multiple pages from Airtable safely (max pageSize=100)
-async function fetchAllAttendees({ baseId, token, sortField = "CreatedAt", limit = 300 }) {
+// Fetch up to N attendee records with pagination (no sort field needed)
+async function fetchAttendees({ baseId, token, limit = 300 }) {
   const pageSizeMax = 100;
   let all = [];
   let offset = null;
@@ -69,16 +60,12 @@ async function fetchAllAttendees({ baseId, token, sortField = "CreatedAt", limit
     const remaining = limit - all.length;
     const pageSize = Math.min(pageSizeMax, remaining);
 
-    const basePath =
-      `SessionAttendees?pageSize=${pageSize}` +
-      `&sort%5B0%5D%5Bfield%5D=${encodeURIComponent(sortField)}` +
-      `&sort%5B0%5D%5Bdirection%5D=desc`;
-
+    const basePath = `SessionAttendees?pageSize=${pageSize}`;
     const path = offset ? `${basePath}&offset=${encodeURIComponent(offset)}` : basePath;
 
     const resp = await airtableRequest({ baseId, token, path });
-
     const records = Array.isArray(resp.records) ? resp.records : [];
+
     all = all.concat(records);
 
     if (!resp.offset) break;
@@ -91,20 +78,16 @@ async function fetchAllAttendees({ baseId, token, sortField = "CreatedAt", limit
 export default async function handler(req, res) {
   const DEBUG = !!(req.body && req.body.debug);
 
-  // OPTIONS preflight
   if (req.method === "OPTIONS") {
     setCors(req, res);
     return res.status(204).end();
   }
-
-  if (req.method !== "POST") {
-    return send(req, res, 405, { ok: false, error: "Use POST" });
-  }
+  if (req.method !== "POST") return send(req, res, 405, { ok: false, error: "Use POST" });
 
   const debugOut = {
     stage: "start",
     env: { hasToken: false, hasBaseId: false },
-    request: { userRecordId: null },
+    request: { userRecordId: DEBUG ? req.body?.userRecordId : null },
     attendees: {},
     matching: {},
     sessions: {},
@@ -123,32 +106,20 @@ export default async function handler(req, res) {
     }
 
     const { userRecordId } = req.body || {};
-    debugOut.request.userRecordId = DEBUG ? userRecordId : null;
-
     if (!userRecordId) {
       debugOut.stage = "missing_userRecordId";
       return send(req, res, 400, { ok: false, error: "Missing userRecordId", debug: DEBUG ? debugOut : undefined });
     }
 
-    // ------------------------------------------------------------
-    // 1) Fetch attendees (paged) sorted by CreatedAt
-    // ------------------------------------------------------------
+    // 1) Fetch attendee rows
     debugOut.stage = "fetch_attendees";
-
-    const all = await fetchAllAttendees({
-      baseId,
-      token,
-      sortField: "CreatedAt",
-      limit: 300,
-    });
+    const all = await fetchAttendees({ baseId, token, limit: 300 });
 
     debugOut.attendees.totalFetched = all.length;
     debugOut.attendees.firstRecordFieldKeys = all[0]?.fields ? Object.keys(all[0].fields) : [];
     debugOut.attendees.firstRecordFieldsSample = DEBUG ? all[0]?.fields : undefined;
 
-    // ------------------------------------------------------------
-    // 2) Match this user (linked field "User" must contain recordId)
-    // ------------------------------------------------------------
+    // 2) Filter rows that belong to this user (linked field "User")
     debugOut.stage = "filter_by_user";
 
     const mine = all.filter((r) => Array.isArray(r.fields?.User) && r.fields.User.includes(userRecordId));
@@ -158,13 +129,9 @@ export default async function handler(req, res) {
     debugOut.matching.sampleCommitStatuses = DEBUG ? mine.slice(0, 8).map((r) => r.fields?.CommitStatus) : undefined;
     debugOut.matching.sampleSessionArrays = DEBUG ? mine.slice(0, 3).map((r) => r.fields?.Session) : undefined;
 
-    // ------------------------------------------------------------
-    // 3) Only commitments (CommitStatus == Committed)
-    // ------------------------------------------------------------
+    // 3) Only CommitStatus == Committed
     debugOut.stage = "filter_committed";
-
     const committed = mine.filter((r) => norm(r.fields?.CommitStatus) === "committed");
-
     debugOut.matching.matchedByCommitted = committed.length;
 
     if (!committed.length) {
@@ -172,11 +139,8 @@ export default async function handler(req, res) {
       return send(req, res, 200, { ok: true, commitments: [], debug: DEBUG ? debugOut : undefined });
     }
 
-    // ------------------------------------------------------------
-    // 4) Fetch sessions for those commitments
-    // ------------------------------------------------------------
+    // 4) Fetch session records
     debugOut.stage = "fetch_sessions";
-
     const sessionIds = committed
       .map((r) => (Array.isArray(r.fields?.Session) ? r.fields.Session[0] : null))
       .filter(Boolean);
@@ -184,20 +148,17 @@ export default async function handler(req, res) {
     const or = sessionIds.slice(0, 50).map((id) => `RECORD_ID()="${id}"`).join(",");
     const sessionsPath = `Sessions?filterByFormula=${encodeURIComponent(`OR(${or})`)}`;
 
-    debugOut.sessions.wantedSessionIds = DEBUG ? sessionIds : undefined;
     debugOut.sessions.path = sessionsPath;
+    debugOut.sessions.wantedSessionIds = DEBUG ? sessionIds : undefined;
 
     const sess = await airtableRequest({ baseId, token, path: sessionsPath });
-
     const sessions = Array.isArray(sess.records) ? sess.records : [];
     const sessionMap = new Map(sessions.map((s) => [s.id, s]));
 
     debugOut.sessions.fetched = sessions.length;
     debugOut.sessions.firstSessionFieldsSample = DEBUG ? sessions[0]?.fields : undefined;
 
-    // ------------------------------------------------------------
     // 5) Build response
-    // ------------------------------------------------------------
     debugOut.stage = "build_response";
 
     const commitments = committed.map((a) => {
@@ -222,7 +183,6 @@ export default async function handler(req, res) {
     console.error("rooms-my error:", err);
 
     const airtable = err?._airtable;
-
     debugOut.stage = "error";
 
     return send(req, res, 500, {
