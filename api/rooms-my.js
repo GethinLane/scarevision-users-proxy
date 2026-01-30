@@ -15,6 +15,7 @@ function send(req, res, status, data) {
   return res.status(status).json(data);
 }
 
+// Airtable request that NEVER hides raw responses
 async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   const url = `https://api.airtable.com/v0/${baseId}/${path}`;
 
@@ -28,16 +29,30 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   });
 
   const text = await r.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-
-  if (!r.ok) {
-    const msg = data?.error?.message || text || `Airtable error (${r.status})`;
-    const type = data?.error?.type || "unknown";
-    throw new Error(`${type}: ${msg}`);
+  let json = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = null;
   }
 
-  return data;
+  if (!r.ok) {
+    const msg = json?.error?.message || text || `Airtable error (${r.status})`;
+    const type = json?.error?.type || "unknown";
+    const err = new Error(`${type}: ${msg}`);
+    err._airtable = {
+      status: r.status,
+      statusText: r.statusText,
+      bodyText: text,
+      bodyJson: json,
+      url,
+      path,
+      method,
+    };
+    throw err;
+  }
+
+  return json ?? {};
 }
 
 function norm(v) {
@@ -45,61 +60,143 @@ function norm(v) {
 }
 
 export default async function handler(req, res) {
+  const DEBUG = !!(req.body && req.body.debug);
+
+  // OPTIONS preflight
   if (req.method === "OPTIONS") {
     setCors(req, res);
     return res.status(204).end();
   }
-  if (req.method !== "POST") return send(req, res, 405, { ok: false, error: "Use POST" });
+
+  // Only POST
+  if (req.method !== "POST") {
+    return send(req, res, 405, { ok: false, error: "Use POST" });
+  }
+
+  const debugOut = {
+    stage: "start",
+    env: {
+      hasToken: false,
+      hasBaseId: false,
+    },
+    request: {
+      hasUserRecordId: false,
+      userRecordId: null,
+    },
+    airtable: {},
+  };
 
   try {
     const token = process.env.AIRTABLE_USERS_TOKEN;
     const baseId = process.env.AIRTABLE_USERS_BASE_ID;
-    if (!token || !baseId) return send(req, res, 500, { ok: false, error: "Server not configured" });
+
+    debugOut.env.hasToken = !!token;
+    debugOut.env.hasBaseId = !!baseId;
+
+    if (!token || !baseId) {
+      debugOut.stage = "env_missing";
+      return send(req, res, 500, { ok: false, error: "Server not configured", debug: DEBUG ? debugOut : undefined });
+    }
 
     const { userRecordId } = req.body || {};
-    if (!userRecordId) return send(req, res, 400, { ok: false, error: "Missing userRecordId" });
+    debugOut.request.hasUserRecordId = !!userRecordId;
+    debugOut.request.userRecordId = DEBUG ? userRecordId : null;
 
-    // ✅ Sort by your actual field name: CreatedAt
+    if (!userRecordId) {
+      debugOut.stage = "missing_userRecordId";
+      return send(req, res, 400, { ok: false, error: "Missing userRecordId", debug: DEBUG ? debugOut : undefined });
+    }
+
+    // ------------------------------------------------------------
+    // 1) Pull attendee rows (sorted by CreatedAt)
+    // ------------------------------------------------------------
+    debugOut.stage = "fetch_attendees";
+
+    const attendeesPath =
+      `SessionAttendees?pageSize=200` +
+      `&sort%5B0%5D%5Bfield%5D=${encodeURIComponent("CreatedAt")}` +
+      `&sort%5B0%5D%5Bdirection%5D=desc`;
+
     const att = await airtableRequest({
       baseId,
       token,
-      path: `SessionAttendees?pageSize=200&sort%5B0%5D%5Bfield%5D=${encodeURIComponent(
-        "CreatedAt"
-      )}&sort%5B0%5D%5Bdirection%5D=desc`,
+      path: attendeesPath,
     });
 
-    const all = att.records || [];
+    const all = Array.isArray(att.records) ? att.records : [];
 
-    // Linked record fields come back as arrays of recordIds
+    debugOut.airtable.attendees = {
+      path: attendeesPath,
+      totalFetched: all.length,
+      firstRecordFieldKeys: all[0]?.fields ? Object.keys(all[0].fields) : [],
+      firstRecordFieldsSample: DEBUG ? all[0]?.fields : undefined,
+    };
+
+    // ------------------------------------------------------------
+    // 2) Match by linked User array
+    // ------------------------------------------------------------
+    debugOut.stage = "filter_by_user";
+
     const mine = all.filter((r) => Array.isArray(r.fields?.User) && r.fields.User.includes(userRecordId));
+
+    debugOut.airtable.matching = {
+      matchedByUser: mine.length,
+      sampleUserArrays: DEBUG ? mine.slice(0, 3).map((r) => r.fields?.User) : undefined,
+      sampleCommitStatuses: DEBUG ? mine.slice(0, 5).map((r) => r.fields?.CommitStatus) : undefined,
+      sampleSessionArrays: DEBUG ? mine.slice(0, 3).map((r) => r.fields?.Session) : undefined,
+    };
+
+    // ------------------------------------------------------------
+    // 3) Filter commitments
+    // ------------------------------------------------------------
+    debugOut.stage = "filter_committed";
+
     const committed = mine.filter((r) => norm(r.fields?.CommitStatus) === "committed");
 
+    debugOut.airtable.matching.matchedByCommitted = committed.length;
+
     if (!committed.length) {
+      debugOut.stage = "no_commitments_found";
       return send(req, res, 200, {
         ok: true,
         commitments: [],
-        debug: {
-          fetchedAttendees: all.length,
-          matchedByUser: mine.length,
-          matchedByCommitStatus: committed.length,
-          sampleCommitStatusValues: mine.slice(0, 5).map((r) => r.fields?.CommitStatus),
-          firstRecordFieldKeys: all[0]?.fields ? Object.keys(all[0].fields) : [],
-        },
+        debug: DEBUG ? debugOut : undefined,
       });
     }
+
+    // ------------------------------------------------------------
+    // 4) Fetch session records for those commitments
+    // ------------------------------------------------------------
+    debugOut.stage = "fetch_sessions";
 
     const sessionIds = committed
       .map((r) => (Array.isArray(r.fields?.Session) ? r.fields.Session[0] : null))
       .filter(Boolean);
 
     const or = sessionIds.slice(0, 50).map((id) => `RECORD_ID()="${id}"`).join(",");
+    const sessionsPath = `Sessions?filterByFormula=${encodeURIComponent(`OR(${or})`)}`;
+
+    debugOut.airtable.sessions = {
+      wantedSessionIds: DEBUG ? sessionIds : undefined,
+      path: sessionsPath,
+    };
+
     const sess = await airtableRequest({
       baseId,
       token,
-      path: `Sessions?filterByFormula=${encodeURIComponent(`OR(${or})`)}`,
+      path: sessionsPath,
     });
 
-    const sessionMap = new Map((sess.records || []).map((s) => [s.id, s]));
+    const sessions = Array.isArray(sess.records) ? sess.records : [];
+    const sessionMap = new Map(sessions.map((s) => [s.id, s]));
+
+    debugOut.airtable.sessions.fetched = sessions.length;
+    debugOut.airtable.sessions.firstSessionFieldsSample = DEBUG ? sessions[0]?.fields : undefined;
+
+    // ------------------------------------------------------------
+    // 5) Build response
+    // ------------------------------------------------------------
+    debugOut.stage = "build_response";
 
     const commitments = committed.map((a) => {
       const sid = Array.isArray(a.fields?.Session) ? a.fields.Session[0] : null;
@@ -117,17 +214,34 @@ export default async function handler(req, res) {
       };
     });
 
-    return send(req, res, 200, {
-      ok: true,
-      commitments,
-      debug: {
-        fetchedAttendees: all.length,
-        matchedByUser: mine.length,
-        matchedByCommitStatus: committed.length,
-      },
-    });
+    debugOut.stage = "done";
+    return send(req, res, 200, { ok: true, commitments, debug: DEBUG ? debugOut : undefined });
   } catch (err) {
-    console.error("rooms-my error:", err);
-    return send(req, res, 500, { ok: false, error: err.message || "Server error" });
+    // Always return a JSON error, with Airtable raw error if present
+    debugOut.stage = "error";
+
+    const airtable = err?._airtable;
+
+    return send(req, res, 500, {
+      ok: false,
+      error: err.message || "Server error",
+      debug: DEBUG
+        ? {
+            ...debugOut,
+            airtableError: airtable
+              ? {
+                  status: airtable.status,
+                  statusText: airtable.statusText,
+                  method: airtable.method,
+                  path: airtable.path,
+                  // url is safe, but verbose; include for completeness in debug mode
+                  url: airtable.url,
+                  bodyText: airtable.bodyText,
+                  bodyJson: airtable.bodyJson,
+                }
+              : null,
+          }
+        : undefined,
+    });
   }
 }
