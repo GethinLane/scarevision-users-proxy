@@ -1,66 +1,58 @@
-import Airtable from "airtable";
-
-const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY })
-  .base(process.env.AIRTABLE_BASE_ID);
-
-/**
- * Expected body:
- * {
- *   userRecordId: "recXXXX",   <-- returned from session-start
- *   start: ISO string,
- *   end: ISO string,
- *   platform: "Google Meet",
- *   meetingLink: "https://meet.google.com/xxx",
- *   maxParticipants: 3
- * }
- */
-
 export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ ok: false });
+
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ ok: false, error: "Method not allowed" });
-    }
+    const token = process.env.AIRTABLE_USERS_TOKEN;
+    const baseId = process.env.AIRTABLE_USERS_BASE_ID;
 
-    const {
-      userRecordId,
-      start,
-      end,
-      platform,
-      meetingLink,
-      maxParticipants,
-    } = req.body || {};
+    const { userRecordId, start, end, platform, meetingLink } = req.body;
 
-    if (!userRecordId) {
-      return res.status(400).json({ ok: false, error: "Missing userRecordId" });
-    }
+    if (!userRecordId) throw new Error("Missing userRecordId");
+    if (!meetingLink) throw new Error("Missing meetingLink");
 
-    if (!meetingLink) {
-      return res.status(400).json({ ok: false, error: "Missing meetingLink" });
-    }
+    // Create Session
+    const sessionResp = await fetch(
+      `https://api.airtable.com/v0/${baseId}/Sessions`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fields: {
+            HostUser: [userRecordId],
+            Start: start,
+            End: end,
+            Status: "Open",
+            Platform: platform,
+            MeetingLink: meetingLink,
+            MaxParticipants: 3,
+          },
+        }),
+      }
+    );
 
-    // 1. Create session
-    const session = await base("Sessions").create({
-      HostUser: [userRecordId],
-      Start: start,
-      End: end,
-      Status: "Open",
-      Platform: platform || "Google Meet",
-      MeetingLink: meetingLink,
-      MaxParticipants: maxParticipants || 3,
+    const sessionData = await sessionResp.json();
+    if (!sessionResp.ok) throw new Error(sessionData?.error?.message);
+
+    // Auto-add host as attendee
+    await fetch(`https://api.airtable.com/v0/${baseId}/SessionAttendees`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fields: {
+          Session: [sessionData.id],
+          User: [userRecordId],
+        },
+      }),
     });
 
-    // 2. Auto-add host as attendee
-    await base("SessionAttendees").create({
-      Session: [session.id],
-      User: [userRecordId],
-    });
-
-    return res.json({
-      ok: true,
-      sessionId: session.id,
-    });
+    return res.json({ ok: true, sessionId: sessionData.id });
   } catch (err) {
-    console.error("rooms-create error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }
