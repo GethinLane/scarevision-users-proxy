@@ -126,18 +126,20 @@ export default async function handler(req, res) {
     // ------------------------------------------------------------
     // 2. Auto-add host as attendee
     // ------------------------------------------------------------
-    await airtableRequest({
-      baseId,
-      token,
-      path: "SessionAttendees",
-      method: "POST",
-      body: {
-        fields: {
-          Session: [sessionId],
-          User: [userRecordId],
-        },
-      },
-    });
+await airtableRequest({
+  baseId,
+  token,
+  path: "SessionAttendees",
+  method: "POST",
+  body: {
+    fields: {
+      Session: [sessionId],
+      User: [userRecordId],
+      CommitStatus: "Committed",   // ✅ important
+    },
+  },
+});
+
 
     // ------------------------------------------------------------
     // Done
