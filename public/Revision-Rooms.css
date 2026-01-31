@@ -775,3 +775,17 @@
   background: rgba(255,255,255,0.75);
   padding: 12px 14px;
 }
+/* Mobile: stack "Update meeting" + "Cancel session" buttons (My scheduled sessions only) */
+@media (max-width: 640px){
+  #myRoomsList .room-actions{
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  #myRoomsList .room-actions > button,
+  #myRoomsList .room-actions > a{
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
