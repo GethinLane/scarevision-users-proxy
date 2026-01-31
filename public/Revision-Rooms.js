@@ -117,9 +117,17 @@
           const div = document.createElement("div");
           div.className = "room-item";
 
-          const startStr = fmtDateTime(c.start);
-          const isFuture = c.start ? (new Date(c.start) > new Date()) : true;
-          const tag = c.isHost ? "Host" : "Committed";
+const startStr = fmtDateTime(c.start);
+
+const now = new Date();
+const startDt = c.start ? new Date(c.start) : null;
+const endDt = c.end ? new Date(c.end) : null;
+
+const isFuture = startDt ? startDt > now : true;
+const isLive = startDt && endDt ? (startDt <= now && now < endDt) : false;
+
+const tag = c.isHost ? "Host" : "Committed";
+
 
           div.innerHTML = `
             <div class="room-topic">${c.topic || "Practice Room"} <span class="tag">${tag}</span></div>
@@ -129,16 +137,16 @@
             </div>
 
             ${
-              c.isHost && isFuture
-                ? `
-                  <div class="room-actions">
-                    <button class="btn-update" type="button">
-                      <i class="fa fa-pencil"></i> Update meeting
-                    </button>
-                    <button class="btn-cancel-session" type="button">
-                      <i class="fa fa-times"></i> Cancel session
-                    </button>
-                  </div>
+c.isHost && (isFuture || isLive)
+  ? `
+      <div class="room-actions">
+        <button class="btn-update" type="button">
+          <i class="fa fa-pencil"></i> Update meeting
+        </button>
+        <button class="btn-cancel-session" type="button">
+          <i class="fa fa-times"></i> Cancel session
+        </button>
+      </div>
                 `
                 : `
                   <div class="room-actions room-actions-single">
@@ -151,7 +159,8 @@
           `;
 
           // Host controls
-          if (c.isHost && isFuture) {
+          if (c.isHost && (isFuture || isLive)) {
+
             div.querySelector(".btn-update").onclick = async () => {
               const newLink = prompt("Paste the NEW meeting link (leave blank to keep):", c.meetingLink || "");
               if (newLink === null) return;
@@ -177,16 +186,29 @@
               }
             };
 
-            div.querySelector(".btn-cancel-session").onclick = async () => {
-              if (!confirm("Cancel this session for everyone? This cannot be undone.")) return;
-              try {
-                await apiPost("rooms-host-cancel", { sessionId: c.sessionId, userRecordId });
-                alert("✅ Session cancelled.");
-                await refreshAll();
-              } catch (e) {
-                alert("❌ Could not cancel session: " + e.message);
-              }
-            };
+const cancelBtn = div.querySelector(".btn-cancel-session");
+
+// Change label depending on state
+if (cancelBtn) {
+  cancelBtn.innerHTML = `<i class="fa fa-times"></i> ${isLive ? "End session" : "Cancel session"}`;
+
+  cancelBtn.onclick = async () => {
+    const msg = isLive
+      ? "End this session now? This will close it on the portal and stop new joins."
+      : "Cancel this session for everyone? This cannot be undone.";
+
+    if (!confirm(msg)) return;
+
+    try {
+      await apiPost("rooms-host-cancel", { sessionId: c.sessionId, userRecordId });
+      alert(isLive ? "✅ Session ended." : "✅ Session cancelled.");
+      await refreshAll();
+    } catch (e) {
+      alert("❌ Could not update session: " + e.message);
+    }
+  };
+}
+
           } else {
             // Attendee cancel commitment
             div.querySelector(".btn-cancel-commit").onclick = async () => {
