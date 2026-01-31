@@ -449,3 +449,154 @@
       white-space: normal !important;
     }
   }
+/* 3) Start now / Schedule toggle */
+.sca-toggle{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.sca-toggle-btn{
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(255,255,255,0.92);
+  color: var(--sca-ink);
+
+  padding: 12px 16px;
+  border-radius: 999px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  cursor: pointer;
+  user-select: none;
+
+  box-shadow: 0 12px 30px rgba(15,23,42,0.06);
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
+}
+
+.sca-toggle-btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 16px 40px rgba(15,23,42,0.10);
+  background: #fff;
+}
+
+.sca-toggle-btn.is-active{
+  background: var(--sca-ink);
+  color: #fff;
+  border-color: rgba(37,53,81,0.25);
+  box-shadow: 0 14px 34px rgba(15,23,42,0.22);
+}
+
+.sca-schedule-wrap{
+  margin-top: 14px;
+}
+/* Lists + room item styling */
+.room-item{
+  border: 1px solid rgba(148,163,184,0.22);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 14px;
+  background: rgba(255,255,255,0.88);
+  box-shadow: 0 10px 26px rgba(15,23,42,0.06);
+}
+
+.room-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+@media (max-width: 640px){
+  .room-actions{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .room-actions.room-actions-single{
+    grid-template-columns: 1fr;
+  }
+  .room-actions > button{
+    width: 100%;
+    justify-content:center;
+  }
+}
+
+/* Base button style */
+.room-item button.btn-update,
+.room-item button.btn-cancel-session,
+.room-item button.btn-cancel-commit,
+.room-item button.btn-join,
+.room-item button.btn-commit{
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, filter .12s ease;
+}
+
+.room-item button.btn-update i,
+.room-item button.btn-cancel-session i,
+.room-item button.btn-cancel-commit i,
+.room-item button.btn-join i,
+.room-item button.btn-commit i{
+  color: currentColor;
+  transform: translateY(1px);
+}
+
+/* UPDATE = white */
+.room-item button.btn-update{
+  background: #ffffff;
+  color: #253551;
+  border-color: rgba(37,53,81,0.22);
+  box-shadow: 0 10px 26px rgba(15,23,42,0.08);
+}
+.room-item button.btn-update:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px rgba(15,23,42,0.12);
+}
+
+/* CANCEL = navy filled */
+.room-item button.btn-cancel-session,
+.room-item button.btn-cancel-commit{
+  background: #253551;
+  color: #ffffff;
+  border-color: rgba(37,53,81,0.22);
+  box-shadow: 0 10px 26px rgba(15,23,42,0.22);
+}
+.room-item button.btn-cancel-session:hover,
+.room-item button.btn-cancel-commit:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 14px 34px rgba(15,23,42,0.26);
+}
+
+/* JOIN + COMMIT = soft mist */
+.room-item button.btn-join,
+.room-item button.btn-commit{
+  background: rgba(214,221,233,0.55);
+  color: #253551;
+  border-color: rgba(37,53,81,0.16);
+  box-shadow: none;
+}
+.room-item button.btn-join:hover,
+.room-item button.btn-commit:hover{
+  background: rgba(214,221,233,0.75);
+  transform: translateY(-1px);
+}
+
+.room-item button[disabled]{
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
