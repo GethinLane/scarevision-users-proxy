@@ -131,7 +131,11 @@ export default async function handler(req, res) {
 
     // 3) Only CommitStatus == Committed
     debugOut.stage = "filter_committed";
-    const committed = mine.filter((r) => norm(r.fields?.CommitStatus) === "committed");
+    const committed = mine.filter((r) => {
+  const cs = norm(r.fields?.CommitStatus);
+  return cs === "committed" || cs === ""; // ✅ include older host rows
+});
+
     debugOut.matching.matchedByCommitted = committed.length;
 
     if (!committed.length) {
