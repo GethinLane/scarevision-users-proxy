@@ -1,6 +1,10 @@
-// voice-patient.js
+// voice-patient.js (Option A: AudioWorklet capture + backpressure + queue cap)
 (() => {
   const backendUrl = "https://voice-patient-backend.onrender.com";
+
+  // Tune these
+  const WS_BACKPRESSURE_BYTES = 300_000; // drop mic frames if ws.bufferedAmount above this
+  const MAX_PLAYBACK_QUEUE = 6;          // drop oldest AI audio if we fall behind
 
   function $(id) { return document.getElementById(id); }
 
@@ -44,7 +48,7 @@
     }
   }
 
-  // -------------------- Audio helpers --------------------
+  // -------------------- Playback helpers --------------------
   function base64ToUint8Array(b64) {
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
@@ -54,61 +58,30 @@
 
   function int16ToFloat32(int16) {
     const f32 = new Float32Array(int16.length);
-    for (let i = 0; i < int16.length; i++) {
-      f32[i] = Math.max(-1, Math.min(1, int16[i] / 32768));
-    }
+    for (let i = 0; i < int16.length; i++) f32[i] = Math.max(-1, Math.min(1, int16[i] / 32768));
     return f32;
   }
 
-  // Downsample Float32 -> 16kHz PCM16
-  function downsampleTo16kPCM16(float32, inRate) {
-    const outRate = 16000;
-    if (outRate === inRate) {
-      const out = new Int16Array(float32.length);
-      for (let i = 0; i < float32.length; i++) {
-        out[i] = Math.max(-1, Math.min(1, float32[i])) * 32767;
-      }
-      return out;
-    }
-
-    const ratio = inRate / outRate;
-    const outLen = Math.round(float32.length / ratio);
-    const out = new Int16Array(outLen);
-
-    let offset = 0;
-    for (let i = 0; i < outLen; i++) {
-      const nextOffset = Math.round((i + 1) * ratio);
-      let sum = 0;
-      let count = 0;
-      for (let j = offset; j < nextOffset && j < float32.length; j++) {
-        sum += float32[j];
-        count++;
-      }
-      const sample = count ? sum / count : 0;
-      out[i] = Math.max(-1, Math.min(1, sample)) * 32767;
-      offset = nextOffset;
-    }
-    return out;
-  }
-
-  // -------------------- Playback --------------------
+  // -------------------- State --------------------
   let ws = null;
   let audioCtx = null;
   let micStream = null;
-  let processor = null;
+  let micSource = null;
+
+  let workletBlobUrl = null;
+  let micNode = null;
   let silentGain = null;
+
+  let backendReady = false;
+  let outputSampleRate = 24000;
 
   const playbackQueue = [];
   let playing = false;
-  let outputSampleRate = 24000;
 
-  // Backpressure / queue limits
-  const WS_BACKPRESSURE_BYTES = 300_000; // drop mic frames if WS buffered above this
-  const MAX_PLAYBACK_QUEUE = 6;          // drop oldest AI audio if we fall behind
-
-  // debug meter (once per sec)
+  // network debug (once/sec)
   let lastNetDebugMs = 0;
 
+  // -------------------- Playback --------------------
   async function playPcmChunk(pcmBytesB64, sampleRate) {
     if (!audioCtx) return;
 
@@ -121,7 +94,7 @@
 
     playbackQueue.push(buffer);
 
-    // ✅ Cap queue to prevent “AI speaking late”
+    // ✅ cap queue so audio doesn't play late if we fall behind
     if (playbackQueue.length > MAX_PLAYBACK_QUEUE) {
       playbackQueue.splice(0, playbackQueue.length - MAX_PLAYBACK_QUEUE);
     }
@@ -148,9 +121,9 @@
   // -------------------- UI helpers --------------------
   function setUiConnected(connected) {
     const startBtn = $("startBtn");
-    const stopBtn = $("stopBtn");
+    const stopBtn  = $("stopBtn");
     if (startBtn) startBtn.disabled = connected;
-    if (stopBtn) stopBtn.disabled = !connected;
+    if (stopBtn)  stopBtn.disabled  = !connected;
   }
 
   function setStatus(text) {
@@ -158,6 +131,143 @@
     if (statusEl) statusEl.textContent = text;
   }
 
+  // -------------------- AudioWorklet (mic -> 16k PCM16) --------------------
+  function makeMicWorkletModuleUrl() {
+    // Single-file deploy: we generate the worklet JS from a Blob (avoids CORS / hosting hassles).
+    const workletCode = `
+class MicToPcm16Processor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.enabled = false;
+
+    // buffer of float samples at input sampleRate
+    this.buf = new Float32Array(8192);
+    this.writePos = 0;
+
+    this.chunkSize = 4096;     // process in chunks
+    this.outRate = 16000;
+
+    this.port.onmessage = (e) => {
+      if (e?.data?.type === "enable") this.enabled = !!e.data.enabled;
+      if (e?.data?.type === "reset") { this.writePos = 0; }
+    };
+  }
+
+  ensureCapacity(extra) {
+    const needed = this.writePos + extra;
+    if (needed <= this.buf.length) return;
+    let newLen = this.buf.length;
+    while (newLen < needed) newLen *= 2;
+    const nb = new Float32Array(newLen);
+    nb.set(this.buf, 0);
+    this.buf = nb;
+  }
+
+  downsampleToPcm16(input, inRate) {
+    const ratio = inRate / this.outRate;
+    const outLen = Math.round(input.length / ratio);
+    const out = new Int16Array(outLen);
+
+    let offset = 0;
+    for (let i = 0; i < outLen; i++) {
+      const nextOffset = Math.round((i + 1) * ratio);
+      let sum = 0;
+      let count = 0;
+      for (let j = offset; j < nextOffset && j < input.length; j++) {
+        sum += input[j];
+        count++;
+      }
+      const sample = count ? (sum / count) : 0;
+      const s = Math.max(-1, Math.min(1, sample));
+      out[i] = (s * 32767) | 0;
+      offset = nextOffset;
+    }
+    return out;
+  }
+
+  process(inputs) {
+    const input = inputs[0];
+    if (!input || !input[0]) return true;
+
+    const ch0 = input[0];
+
+    // Always capture, but only emit messages when enabled
+    this.ensureCapacity(ch0.length);
+    this.buf.set(ch0, this.writePos);
+    this.writePos += ch0.length;
+
+    if (!this.enabled) {
+      // avoid unbounded growth
+      if (this.writePos > this.buf.length * 0.75) this.writePos = 0;
+      return true;
+    }
+
+    // While we have a full chunk, downsample and send
+    while (this.writePos >= this.chunkSize) {
+      const slice = this.buf.subarray(0, this.chunkSize);
+      const pcm16 = this.downsampleToPcm16(slice, sampleRate);
+
+      // Transfer buffer to main thread (zero-copy)
+      this.port.postMessage({ type: "pcm16", buffer: pcm16.buffer }, [pcm16.buffer]);
+
+      // shift remaining samples down
+      this.buf.copyWithin(0, this.chunkSize, this.writePos);
+      this.writePos -= this.chunkSize;
+    }
+
+    return true;
+  }
+}
+
+registerProcessor("mic-to-pcm16", MicToPcm16Processor);
+`.trim();
+
+    const blob = new Blob([workletCode], { type: "application/javascript" });
+    return URL.createObjectURL(blob);
+  }
+
+  async function setupMicWorklet() {
+    // Create silent sink (prevents mic being audible / reduces echo)
+    silentGain = audioCtx.createGain();
+    silentGain.gain.value = 0;
+    silentGain.connect(audioCtx.destination);
+
+    // Create module URL + load worklet
+    workletBlobUrl = makeMicWorkletModuleUrl();
+    await audioCtx.audioWorklet.addModule(workletBlobUrl);
+
+    // Create mic worklet node
+    micNode = new AudioWorkletNode(audioCtx, "mic-to-pcm16");
+
+    // Receive pcm16 buffers from worklet and forward to WS with backpressure protection
+    micNode.port.onmessage = (evt) => {
+      if (!evt?.data || evt.data.type !== "pcm16") return;
+
+      if (!backendReady) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+      // ✅ Backpressure guard: drop if congested (prevents “lag buildup”)
+      if (ws.bufferedAmount > WS_BACKPRESSURE_BYTES) return;
+
+      ws.send(evt.data.buffer);
+
+      // ✅ lightweight debug once per second
+      const now = performance.now();
+      if (now - lastNetDebugMs > 1000) {
+        lastNetDebugMs = now;
+        log(`[NET] ws.bufferedAmount=${ws.bufferedAmount} playbackQueue=${playbackQueue.length}`);
+      }
+    };
+
+    // Connect mic -> worklet -> silent sink (keeps processing alive)
+    micSource.connect(micNode);
+    micNode.connect(silentGain);
+
+    // Start disabled; enable only when backend sends "ready"
+    micNode.port.postMessage({ type: "enable", enabled: false });
+  }
+
+  // -------------------- Cleanup --------------------
   function cleanup() {
     try {
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -166,15 +276,20 @@
       }
     } catch {}
 
+    backendReady = false;
     ws = null;
 
-    if (processor) {
-      try { processor.disconnect(); } catch {}
-      processor = null;
-    }
-    if (silentGain) {
-      try { silentGain.disconnect(); } catch {}
-      silentGain = null;
+    try { micNode?.disconnect(); } catch {}
+    try { micSource?.disconnect(); } catch {}
+    try { silentGain?.disconnect(); } catch {}
+
+    micNode = null;
+    micSource = null;
+    silentGain = null;
+
+    if (workletBlobUrl) {
+      try { URL.revokeObjectURL(workletBlobUrl); } catch {}
+      workletBlobUrl = null;
     }
 
     if (micStream) {
@@ -200,6 +315,7 @@
       setStatus("Connecting...");
       safeSetAIState("listening");
 
+      // AudioContext must be created on user gesture
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
       const wsUrl = backendUrl.replace("https://", "wss://").replace("http://", "ws://") + "/ws";
@@ -208,56 +324,23 @@
 
       ws.onopen = async () => {
         log("[WS] connected");
-        setStatus("Requesting microphone...");
+        setStatus("Loading case & connecting to Vertex…");
 
-        // Send init (case selection) FIRST
+        // Send init first (case selection)
         const sel = $("caseSelect");
         const caseId = Number(sel?.value) || 1;
         ws.send(JSON.stringify({ type: "init", caseId }));
         log(`[INIT] sent caseId=${caseId}`);
 
-        // Request mic with suppression
+        // Get mic stream (still needs user gesture in many browsers)
         micStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
 
-        const source = audioCtx.createMediaStreamSource(micStream);
+        micSource = audioCtx.createMediaStreamSource(micStream);
+        await setupMicWorklet(); // sets up micNode + silent sink
 
-        // ✅ Slightly smaller buffer can reduce latency (at some CPU cost)
-        processor = audioCtx.createScriptProcessor(1024, 1, 1);
-
-        processor.onaudioprocess = (e) => {
-          if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-          // ✅ Backpressure guard: if we’re congested, drop this mic frame (prevents “lag buildup”)
-          if (ws.bufferedAmount > WS_BACKPRESSURE_BYTES) return;
-
-          const input = e.inputBuffer.getChannelData(0);
-          const pcm16 = downsampleTo16kPCM16(input, audioCtx.sampleRate);
-          ws.send(pcm16.buffer);
-
-          // ✅ lightweight debug once per second
-          const now = performance.now();
-          if (now - lastNetDebugMs > 1000) {
-            lastNetDebugMs = now;
-            log(`[NET] ws.bufferedAmount=${ws.bufferedAmount} playbackQueue=${playbackQueue.length}`);
-          }
-        };
-
-        source.connect(processor);
-
-        // ✅ Don’t route mic audio to speakers (reduces echo / feedback).
-        silentGain = audioCtx.createGain();
-        silentGain.gain.value = 0;
-        processor.connect(silentGain);
-        silentGain.connect(audioCtx.destination);
-
-        setStatus("Connected. Start talking!");
-        safeSetAIState("listening");
+        setStatus("Connected. Waiting for model ready…");
       };
 
       ws.onmessage = async (evt) => {
@@ -265,14 +348,16 @@
         try { msg = JSON.parse(evt.data); } catch { return; }
 
         if (msg.type === "ready") {
+          backendReady = true;
+          if (msg.outputRate) outputSampleRate = msg.outputRate;
           log(`[READY] model=${msg.model}`);
           if (msg.caseTable || msg.caseId) log(`[READY] loaded ${msg.caseTable || ("Case " + msg.caseId)}`);
-          if (msg.outputRate) outputSampleRate = msg.outputRate;
-          return;
-        }
 
-        if (msg.type === "diag") {
-          log(`[DIAG] ${msg.message}`);
+          // enable sending mic audio now that backend/Vertex is ready
+          micNode?.port?.postMessage({ type: "enable", enabled: true });
+
+          setStatus("Ready. Start talking!");
+          safeSetAIState("listening");
           return;
         }
 
@@ -308,6 +393,7 @@
       ws.onerror = () => {
         log("[WS ERROR] (see console)");
       };
+
     } catch (err) {
       log("[ERROR] " + (err?.message || String(err)));
       setStatus("Error: " + (err?.message || String(err)));
@@ -323,7 +409,7 @@
   // -------------------- Init --------------------
   window.addEventListener("DOMContentLoaded", () => {
     const startBtn = $("startBtn");
-    const stopBtn = $("stopBtn");
+    const stopBtn  = $("stopBtn");
 
     if (!startBtn || !stopBtn) {
       log("UI ERROR: startBtn/stopBtn not found. Check element IDs in HTML.");
@@ -334,7 +420,6 @@
     stopBtn.addEventListener("click", stopConsultation);
 
     populateCaseDropdown();
-
     setUiConnected(false);
     setStatus("Not connected");
   });
