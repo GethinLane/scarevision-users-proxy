@@ -268,15 +268,16 @@ processor.onaudioprocess = (e) => {
         }
       };
 
-      ws.onclose = () => {
-        log("[WS] closed");
-        cleanup();
-      };
+ws.onclose = (evt) => {
+  log(`[WS CLOSED] code=${evt.code} reason=${evt.reason || ""}`);
+  cleanup();
+};
 
-      ws.onerror = () => {
-        log("[WS] error");
-        cleanup();
-      };
+
+ws.onerror = (evt) => {
+  log("[WS ERROR] (see console)"); // browser doesn't expose much detail
+};
+
     } catch (err) {
       log("[ERROR] " + (err?.message || String(err)));
       setStatus("Error: " + (err?.message || String(err)));
