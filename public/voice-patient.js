@@ -105,50 +105,49 @@
     safeSetAIState("listening");
   }
 
-  function playPcmChunkScheduled(pcmBytesB64, sampleRate) {
-    if (!audioCtx) return;
+function playPcmChunkScheduled(pcmBytesB64, sampleRate) {
+  if (!audioCtx) return;
 
-    const bytes = base64ToUint8Array(pcmBytesB64);
-    const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
-    const f32 = int16ToFloat32(i16);
+  const bytes = base64ToUint8Array(pcmBytesB64);
+  const i16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
+  const f32 = int16ToFloat32(i16);
 
-    const buffer = audioCtx.createBuffer(1, f32.length, sampleRate);
-    buffer.copyToChannel(f32, 0);
+  const buffer = audioCtx.createBuffer(1, f32.length, sampleRate);
+  buffer.copyToChannel(f32, 0);
 
-    const src = audioCtx.createBufferSource();
-    src.buffer = buffer;
-    src.connect(audioCtx.destination);
+  const now = audioCtx.currentTime;
 
-    const now = audioCtx.currentTime;
+  // If we’re behind, resync
+  if (nextPlayTime < now + 0.05) nextPlayTime = now + 0.05;
 
-    // If behind, reset schedule near-now
-    if (nextPlayTime < now + 0.05) nextPlayTime = now + 0.05;
-
-    // Cap how far ahead we queue
-    const lead = nextPlayTime - now;
-    if (lead > MAX_PLAYBACK_QUEUE_SEC) {
-      nextPlayTime = now + 0.05;
-    }
-
-    // mark AI as "speaking" until the end of scheduled audio
-    aiSpeakingUntil = Math.max(aiSpeakingUntil, nextPlayTime + buffer.duration);
-
-    activeSources.add(src);
-    safeSetAIState("talking");
-
-    src.start(nextPlayTime);
-    nextPlayTime += buffer.duration;
-
-    src.onended = () => {
-      activeSources.delete(src);
-      try { src.disconnect(); } catch {}
-
-      // if nothing else active and we're near end, go back to listening
-      if (audioCtx && activeSources.size === 0 && nextPlayTime <= audioCtx.currentTime + 0.1) {
-        safeSetAIState("listening");
-      }
-    };
+  // ✅ If we’re too far ahead, FLUSH scheduled audio (otherwise it will overlap)
+  const lead = nextPlayTime - now;
+  if (lead > MAX_PLAYBACK_QUEUE_SEC) {
+    stopAllPlayback(`queue overflow lead=${lead.toFixed(2)}s`);
+    nextPlayTime = now + 0.05;
   }
+
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(audioCtx.destination);
+
+  aiSpeakingUntil = Math.max(aiSpeakingUntil, nextPlayTime + buffer.duration);
+
+  activeSources.add(src);
+  safeSetAIState("talking");
+
+  src.start(nextPlayTime);
+  nextPlayTime += buffer.duration;
+
+  src.onended = () => {
+    activeSources.delete(src);
+    try { src.disconnect(); } catch {}
+    if (activeSources.size === 0 && nextPlayTime <= audioCtx.currentTime + 0.1) {
+      safeSetAIState("listening");
+    }
+  };
+}
+
 
   // -------------------- UI helpers --------------------
   function setUiConnected(connected) {
