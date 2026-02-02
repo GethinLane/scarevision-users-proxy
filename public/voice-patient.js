@@ -1,10 +1,10 @@
-// voice-patient.js (Option A: AudioWorklet capture + backpressure + queue cap)
+// voice-patient.js (Options 1-4: scheduled playback + lower latency mic + keepalive + AUDIO+TEXT debug)
 (() => {
   const backendUrl = "https://voice-patient-backend.onrender.com";
 
   // Tune these
   const WS_BACKPRESSURE_BYTES = 300_000; // drop mic frames if ws.bufferedAmount above this
-  const MAX_PLAYBACK_QUEUE = 6;          // drop oldest AI audio if we fall behind
+  const MAX_PLAYBACK_QUEUE_SEC = 2.0;    // cap scheduled audio lead (seconds) to avoid "talking late"
 
   function $(id) { return document.getElementById(id); }
 
@@ -48,7 +48,7 @@
     }
   }
 
-  // -------------------- Playback helpers --------------------
+  // -------------------- Utils --------------------
   function base64ToUint8Array(b64) {
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
@@ -75,14 +75,18 @@
   let backendReady = false;
   let outputSampleRate = 24000;
 
-  const playbackQueue = [];
-  let playing = false;
+  // scheduled playback
+  let nextPlayTime = 0;
+  let lastAudioReceivedAt = 0;
+
+  // keepalive
+  let pingTimer = null;
 
   // network debug (once/sec)
   let lastNetDebugMs = 0;
 
-  // -------------------- Playback --------------------
-  async function playPcmChunk(pcmBytesB64, sampleRate) {
+  // -------------------- Playback (Option 1: gapless scheduler) --------------------
+  function playPcmChunkScheduled(pcmBytesB64, sampleRate) {
     if (!audioCtx) return;
 
     const bytes = base64ToUint8Array(pcmBytesB64);
@@ -92,30 +96,33 @@
     const buffer = audioCtx.createBuffer(1, f32.length, sampleRate);
     buffer.copyToChannel(f32, 0);
 
-    playbackQueue.push(buffer);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(audioCtx.destination);
 
-    // ✅ cap queue so audio doesn't play late if we fall behind
-    if (playbackQueue.length > MAX_PLAYBACK_QUEUE) {
-      playbackQueue.splice(0, playbackQueue.length - MAX_PLAYBACK_QUEUE);
+    const now = audioCtx.currentTime;
+
+    // If we've fallen behind, reset schedule near-now
+    if (nextPlayTime < now + 0.05) nextPlayTime = now + 0.05;
+
+    // Cap how far ahead we queue audio (prevents "late talking" after hiccups)
+    const lead = nextPlayTime - now;
+    if (lead > MAX_PLAYBACK_QUEUE_SEC) {
+      // drop this chunk by snapping schedule closer (effectively skipping backlog)
+      nextPlayTime = now + 0.05;
     }
 
-    if (!playing) {
-      playing = true;
-      while (playbackQueue.length) {
-        const buf = playbackQueue.shift();
-        const src = audioCtx.createBufferSource();
-        src.buffer = buf;
-        src.connect(audioCtx.destination);
+    safeSetAIState("talking");
+    src.start(nextPlayTime);
+    nextPlayTime += buffer.duration;
 
-        safeSetAIState("talking");
-        await new Promise((resolve) => {
-          src.onended = resolve;
-          src.start();
-        });
-      }
-      safeSetAIState("listening");
-      playing = false;
-    }
+    lastAudioReceivedAt = performance.now();
+
+    src.onended = () => {
+      // if nothing else scheduled soon, return to listening
+      if (!audioCtx) return;
+      if (nextPlayTime <= audioCtx.currentTime + 0.1) safeSetAIState("listening");
+    };
   }
 
   // -------------------- UI helpers --------------------
@@ -131,20 +138,19 @@
     if (statusEl) statusEl.textContent = text;
   }
 
-  // -------------------- AudioWorklet (mic -> 16k PCM16) --------------------
+  // -------------------- AudioWorklet (Option 2: smaller chunk size) --------------------
   function makeMicWorkletModuleUrl() {
-    // Single-file deploy: we generate the worklet JS from a Blob (avoids CORS / hosting hassles).
     const workletCode = `
 class MicToPcm16Processor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.enabled = false;
 
-    // buffer of float samples at input sampleRate
     this.buf = new Float32Array(8192);
     this.writePos = 0;
 
-    this.chunkSize = 4096;     // process in chunks
+    // Option 2: smaller chunks for lower latency (was 4096)
+    this.chunkSize = 1024;
     this.outRate = 16000;
 
     this.port.onmessage = (e) => {
@@ -191,26 +197,19 @@ class MicToPcm16Processor extends AudioWorkletProcessor {
 
     const ch0 = input[0];
 
-    // Always capture, but only emit messages when enabled
     this.ensureCapacity(ch0.length);
     this.buf.set(ch0, this.writePos);
     this.writePos += ch0.length;
 
     if (!this.enabled) {
-      // avoid unbounded growth
       if (this.writePos > this.buf.length * 0.75) this.writePos = 0;
       return true;
     }
 
-    // While we have a full chunk, downsample and send
     while (this.writePos >= this.chunkSize) {
       const slice = this.buf.subarray(0, this.chunkSize);
       const pcm16 = this.downsampleToPcm16(slice, sampleRate);
-
-      // Transfer buffer to main thread (zero-copy)
       this.port.postMessage({ type: "pcm16", buffer: pcm16.buffer }, [pcm16.buffer]);
-
-      // shift remaining samples down
       this.buf.copyWithin(0, this.chunkSize, this.writePos);
       this.writePos -= this.chunkSize;
     }
@@ -227,48 +226,46 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
   }
 
   async function setupMicWorklet() {
-    // Create silent sink (prevents mic being audible / reduces echo)
     silentGain = audioCtx.createGain();
     silentGain.gain.value = 0;
     silentGain.connect(audioCtx.destination);
 
-    // Create module URL + load worklet
     workletBlobUrl = makeMicWorkletModuleUrl();
     await audioCtx.audioWorklet.addModule(workletBlobUrl);
 
-    // Create mic worklet node
     micNode = new AudioWorkletNode(audioCtx, "mic-to-pcm16");
 
-    // Receive pcm16 buffers from worklet and forward to WS with backpressure protection
     micNode.port.onmessage = (evt) => {
       if (!evt?.data || evt.data.type !== "pcm16") return;
 
       if (!backendReady) return;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-      // ✅ Backpressure guard: drop if congested (prevents “lag buildup”)
+      // Backpressure guard
       if (ws.bufferedAmount > WS_BACKPRESSURE_BYTES) return;
 
       ws.send(evt.data.buffer);
 
-      // ✅ lightweight debug once per second
       const now = performance.now();
       if (now - lastNetDebugMs > 1000) {
         lastNetDebugMs = now;
-        log(`[NET] ws.bufferedAmount=${ws.bufferedAmount} playbackQueue=${playbackQueue.length}`);
+        log(`[NET] ws.bufferedAmount=${ws.bufferedAmount} nextPlayLead=${audioCtx ? (nextPlayTime - audioCtx.currentTime).toFixed(2) : "?"}s`);
       }
     };
 
-    // Connect mic -> worklet -> silent sink (keeps processing alive)
     micSource.connect(micNode);
     micNode.connect(silentGain);
 
-    // Start disabled; enable only when backend sends "ready"
     micNode.port.postMessage({ type: "enable", enabled: false });
   }
 
   // -------------------- Cleanup --------------------
   function cleanup() {
+    try {
+      if (pingTimer) clearInterval(pingTimer);
+      pingTimer = null;
+    } catch {}
+
     try {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "stop_audio" }));
@@ -302,7 +299,9 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
       audioCtx = null;
     }
 
-    playbackQueue.length = 0;
+    nextPlayTime = 0;
+    lastAudioReceivedAt = 0;
+
     safeSetAIState("listening");
     setUiConnected(false);
     setStatus("Stopped.");
@@ -315,8 +314,8 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
       setStatus("Connecting...");
       safeSetAIState("listening");
 
-      // AudioContext must be created on user gesture
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtx.resume(); // important on Safari/iOS
 
       const wsUrl = backendUrl.replace("https://", "wss://").replace("http://", "ws://") + "/ws";
       ws = new WebSocket(wsUrl);
@@ -326,19 +325,24 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
         log("[WS] connected");
         setStatus("Loading case & connecting to Vertex…");
 
-        // Send init first (case selection)
         const sel = $("caseSelect");
         const caseId = Number(sel?.value) || 1;
         ws.send(JSON.stringify({ type: "init", caseId }));
         log(`[INIT] sent caseId=${caseId}`);
 
-        // Get mic stream (still needs user gesture in many browsers)
+        // Option 3: keepalive ping (client->server)
+        pingTimer = setInterval(() => {
+          try {
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
+          } catch {}
+        }, 12000);
+
         micStream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
 
         micSource = audioCtx.createMediaStreamSource(micStream);
-        await setupMicWorklet(); // sets up micNode + silent sink
+        await setupMicWorklet();
 
         setStatus("Connected. Waiting for model ready…");
       };
@@ -350,10 +354,13 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
         if (msg.type === "ready") {
           backendReady = true;
           if (msg.outputRate) outputSampleRate = msg.outputRate;
+
+          // reset scheduler when ready
+          nextPlayTime = audioCtx.currentTime + 0.05;
+
           log(`[READY] model=${msg.model}`);
           if (msg.caseTable || msg.caseId) log(`[READY] loaded ${msg.caseTable || ("Case " + msg.caseId)}`);
 
-          // enable sending mic audio now that backend/Vertex is ready
           micNode?.port?.postMessage({ type: "enable", enabled: true });
 
           setStatus("Ready. Start talking!");
@@ -361,16 +368,33 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
           return;
         }
 
+        if (msg.type === "pong") return;
+
         if (msg.type === "transcript") log("[You] " + msg.text);
+        if (msg.type === "ai_transcript") log("[AI TR] " + msg.text);
         if (msg.type === "ai_text") log("[AI] " + msg.text);
 
         if (msg.type === "audio") {
-          await playPcmChunk(msg.data, outputSampleRate);
+          playPcmChunkScheduled(msg.data, outputSampleRate);
         }
 
         if (msg.type === "interrupted") {
-          playbackQueue.length = 0;
+          // flush schedule
+          if (audioCtx) nextPlayTime = audioCtx.currentTime + 0.05;
           safeSetAIState("listening");
+          log("[INTERRUPTED]");
+        }
+
+        if (msg.type === "goaway") {
+          log("[GOAWAY] " + JSON.stringify(msg.goAway || {}));
+        }
+
+        if (msg.type === "usage") {
+          log("[USAGE] " + JSON.stringify(msg.usage || {}));
+        }
+
+        if (msg.type === "debug") {
+          log("[DEBUG] " + (msg.raw || ""));
         }
 
         if (msg.type === "error") {
