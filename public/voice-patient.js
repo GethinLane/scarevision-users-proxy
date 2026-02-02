@@ -211,57 +211,15 @@
         const source = audioCtx.createMediaStreamSource(micStream);
         processor = audioCtx.createScriptProcessor(2048, 1, 1);
 
-        // ---- Speech gate + DEBUG RMS meter ----
-        const RMS_THRESHOLD = 0.008;  // start low; raise if noise triggers it
-        const SILENCE_HOLD_MS = 350;
+processor.onaudioprocess = (e) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-        let isStreamingSpeech = false;
-        let silenceMs = 0;
-        let meterMs = 0;
+  const input = e.inputBuffer.getChannelData(0);
+  const pcm16 = downsampleTo16kPCM16(input, audioCtx.sampleRate);
 
-        processor.onaudioprocess = (e) => {
-          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(pcm16.buffer);
+};
 
-          const input = e.inputBuffer.getChannelData(0);
-
-          // RMS energy
-          let sum = 0;
-          for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-          const rms = Math.sqrt(sum / input.length);
-
-          const frameMs = (input.length / audioCtx.sampleRate) * 1000;
-
-          // Debug meter once per second
-          meterMs += frameMs;
-          if (meterMs >= 1000) {
-            meterMs = 0;
-            log(`[RMS] ${rms.toFixed(4)} streaming=${isStreamingSpeech}`);
-          }
-
-          const isLoudEnough = rms >= RMS_THRESHOLD;
-
-          if (isLoudEnough) {
-            isStreamingSpeech = true;
-            silenceMs = 0;
-
-            const pcm16 = downsampleTo16kPCM16(input, audioCtx.sampleRate);
-            ws.send(pcm16.buffer);
-            return;
-          }
-
-          if (!isStreamingSpeech) return;
-
-          silenceMs += frameMs;
-
-          if (silenceMs < SILENCE_HOLD_MS) {
-            const pcm16 = downsampleTo16kPCM16(input, audioCtx.sampleRate);
-            ws.send(pcm16.buffer);
-            return;
-          }
-
-          isStreamingSpeech = false;
-          silenceMs = 0;
-        };
 
         source.connect(processor);
         processor.connect(audioCtx.destination);
