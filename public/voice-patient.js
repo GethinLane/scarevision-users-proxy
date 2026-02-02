@@ -4,7 +4,7 @@
 
   // Tune these
   const WS_BACKPRESSURE_BYTES = 300_000;
-  const MAX_PLAYBACK_QUEUE_SEC = 2.0;
+  const MAX_PLAYBACK_QUEUE_SEC = 6.0;
 
   function $(id) { return document.getElementById(id); }
 
