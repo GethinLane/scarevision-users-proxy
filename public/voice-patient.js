@@ -1,10 +1,10 @@
-// voice-patient.js (Options 1-4: scheduled playback + lower latency mic + keepalive + AUDIO+TEXT debug)
+// voice-patient.js (Options 1-4 + FIX: stop overlap + mic gate while AI speaks)
 (() => {
   const backendUrl = "https://voice-patient-backend.onrender.com";
 
   // Tune these
-  const WS_BACKPRESSURE_BYTES = 300_000; // drop mic frames if ws.bufferedAmount above this
-  const MAX_PLAYBACK_QUEUE_SEC = 2.0;    // cap scheduled audio lead (seconds) to avoid "talking late"
+  const WS_BACKPRESSURE_BYTES = 300_000;
+  const MAX_PLAYBACK_QUEUE_SEC = 2.0;
 
   function $(id) { return document.getElementById(id); }
 
@@ -20,7 +20,6 @@
     if (typeof window.setAIState === "function") window.setAIState(mode);
   }
 
-  // -------------------- Case dropdown --------------------
   async function populateCaseDropdown() {
     const sel = $("caseSelect");
     if (!sel) return;
@@ -48,7 +47,6 @@
     }
   }
 
-  // -------------------- Utils --------------------
   function base64ToUint8Array(b64) {
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
@@ -77,15 +75,36 @@
 
   // scheduled playback
   let nextPlayTime = 0;
-  let lastAudioReceivedAt = 0;
+
+  // IMPORTANT: track active sources so we can stop overlap
+  const activeSources = new Set();
+
+  // gate mic while AI is speaking (prevents feedback / “AI talks to itself”)
+  let aiSpeakingUntil = 0;
 
   // keepalive
   let pingTimer = null;
 
-  // network debug (once/sec)
+  // debug
   let lastNetDebugMs = 0;
 
-  // -------------------- Playback (Option 1: gapless scheduler) --------------------
+  // -------------------- Playback helpers --------------------
+  function stopAllPlayback(reason = "") {
+    if (reason) log(`[PLAYBACK] stopAllPlayback: ${reason}`);
+    for (const src of activeSources) {
+      try { src.onended = null; } catch {}
+      try { src.stop(0); } catch {}
+      try { src.disconnect(); } catch {}
+    }
+    activeSources.clear();
+
+    if (audioCtx) {
+      nextPlayTime = audioCtx.currentTime + 0.05;
+      aiSpeakingUntil = audioCtx.currentTime; // allow mic again
+    }
+    safeSetAIState("listening");
+  }
+
   function playPcmChunkScheduled(pcmBytesB64, sampleRate) {
     if (!audioCtx) return;
 
@@ -102,26 +121,32 @@
 
     const now = audioCtx.currentTime;
 
-    // If we've fallen behind, reset schedule near-now
+    // If behind, reset schedule near-now
     if (nextPlayTime < now + 0.05) nextPlayTime = now + 0.05;
 
-    // Cap how far ahead we queue audio (prevents "late talking" after hiccups)
+    // Cap how far ahead we queue
     const lead = nextPlayTime - now;
     if (lead > MAX_PLAYBACK_QUEUE_SEC) {
-      // drop this chunk by snapping schedule closer (effectively skipping backlog)
       nextPlayTime = now + 0.05;
     }
 
+    // mark AI as "speaking" until the end of scheduled audio
+    aiSpeakingUntil = Math.max(aiSpeakingUntil, nextPlayTime + buffer.duration);
+
+    activeSources.add(src);
     safeSetAIState("talking");
+
     src.start(nextPlayTime);
     nextPlayTime += buffer.duration;
 
-    lastAudioReceivedAt = performance.now();
-
     src.onended = () => {
-      // if nothing else scheduled soon, return to listening
-      if (!audioCtx) return;
-      if (nextPlayTime <= audioCtx.currentTime + 0.1) safeSetAIState("listening");
+      activeSources.delete(src);
+      try { src.disconnect(); } catch {}
+
+      // if nothing else active and we're near end, go back to listening
+      if (audioCtx && activeSources.size === 0 && nextPlayTime <= audioCtx.currentTime + 0.1) {
+        safeSetAIState("listening");
+      }
     };
   }
 
@@ -138,18 +163,17 @@
     if (statusEl) statusEl.textContent = text;
   }
 
-  // -------------------- AudioWorklet (Option 2: smaller chunk size) --------------------
+  // -------------------- AudioWorklet (mic -> 16k PCM16) --------------------
   function makeMicWorkletModuleUrl() {
     const workletCode = `
 class MicToPcm16Processor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.enabled = false;
-
     this.buf = new Float32Array(8192);
     this.writePos = 0;
 
-    // Option 2: smaller chunks for lower latency (was 4096)
+    // lower latency
     this.chunkSize = 1024;
     this.outRate = 16000;
 
@@ -241,7 +265,10 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
       if (!backendReady) return;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-      // Backpressure guard
+      // **MIC GATE** while AI is speaking (prevents feedback loops)
+      if (audioCtx && audioCtx.currentTime < aiSpeakingUntil) return;
+
+      // backpressure guard
       if (ws.bufferedAmount > WS_BACKPRESSURE_BYTES) return;
 
       ws.send(evt.data.buffer);
@@ -249,7 +276,8 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
       const now = performance.now();
       if (now - lastNetDebugMs > 1000) {
         lastNetDebugMs = now;
-        log(`[NET] ws.bufferedAmount=${ws.bufferedAmount} nextPlayLead=${audioCtx ? (nextPlayTime - audioCtx.currentTime).toFixed(2) : "?"}s`);
+        const lead = audioCtx ? (nextPlayTime - audioCtx.currentTime) : 0;
+        log(`[NET] ws.bufferedAmount=${ws.bufferedAmount} lead=${lead.toFixed(2)}s activeSources=${activeSources.size}`);
       }
     };
 
@@ -261,10 +289,10 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
 
   // -------------------- Cleanup --------------------
   function cleanup() {
-    try {
-      if (pingTimer) clearInterval(pingTimer);
-      pingTimer = null;
-    } catch {}
+    try { if (pingTimer) clearInterval(pingTimer); } catch {}
+    pingTimer = null;
+
+    stopAllPlayback("cleanup");
 
     try {
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -300,7 +328,7 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
     }
 
     nextPlayTime = 0;
-    lastAudioReceivedAt = 0;
+    aiSpeakingUntil = 0;
 
     safeSetAIState("listening");
     setUiConnected(false);
@@ -315,7 +343,7 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
       safeSetAIState("listening");
 
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      await audioCtx.resume(); // important on Safari/iOS
+      await audioCtx.resume();
 
       const wsUrl = backendUrl.replace("https://", "wss://").replace("http://", "ws://") + "/ws";
       ws = new WebSocket(wsUrl);
@@ -330,13 +358,12 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
         ws.send(JSON.stringify({ type: "init", caseId }));
         log(`[INIT] sent caseId=${caseId}`);
 
-        // Option 3: keepalive ping (client->server)
         pingTimer = setInterval(() => {
-          try {
-            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
-          } catch {}
+          try { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" })); } catch {}
         }, 12000);
 
+        // NOTE: if you’re using speakers, feedback is still possible.
+        // Headphones are best, but mic-gate above should help a lot.
         micStream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
@@ -347,7 +374,7 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
         setStatus("Connected. Waiting for model ready…");
       };
 
-      ws.onmessage = async (evt) => {
+      ws.onmessage = (evt) => {
         let msg;
         try { msg = JSON.parse(evt.data); } catch { return; }
 
@@ -355,8 +382,7 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
           backendReady = true;
           if (msg.outputRate) outputSampleRate = msg.outputRate;
 
-          // reset scheduler when ready
-          nextPlayTime = audioCtx.currentTime + 0.05;
+          stopAllPlayback("ready reset");
 
           log(`[READY] model=${msg.model}`);
           if (msg.caseTable || msg.caseId) log(`[READY] loaded ${msg.caseTable || ("Case " + msg.caseId)}`);
@@ -379,22 +405,8 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
         }
 
         if (msg.type === "interrupted") {
-          // flush schedule
-          if (audioCtx) nextPlayTime = audioCtx.currentTime + 0.05;
-          safeSetAIState("listening");
+          stopAllPlayback("interrupted");
           log("[INTERRUPTED]");
-        }
-
-        if (msg.type === "goaway") {
-          log("[GOAWAY] " + JSON.stringify(msg.goAway || {}));
-        }
-
-        if (msg.type === "usage") {
-          log("[USAGE] " + JSON.stringify(msg.usage || {}));
-        }
-
-        if (msg.type === "debug") {
-          log("[DEBUG] " + (msg.raw || ""));
         }
 
         if (msg.type === "error") {
@@ -407,6 +419,8 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
           log("[CLOSED] " + msg.message);
           cleanup();
         }
+
+        if (msg.type === "debug") log("[DEBUG] " + (msg.raw || ""));
       };
 
       ws.onclose = (evt) => {
@@ -414,9 +428,7 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
         cleanup();
       };
 
-      ws.onerror = () => {
-        log("[WS ERROR] (see console)");
-      };
+      ws.onerror = () => log("[WS ERROR] (see console)");
 
     } catch (err) {
       log("[ERROR] " + (err?.message || String(err)));
@@ -430,7 +442,6 @@ registerProcessor("mic-to-pcm16", MicToPcm16Processor);
     cleanup();
   }
 
-  // -------------------- Init --------------------
   window.addEventListener("DOMContentLoaded", () => {
     const startBtn = $("startBtn");
     const stopBtn  = $("stopBtn");
