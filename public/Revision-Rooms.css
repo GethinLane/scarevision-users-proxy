@@ -793,3 +793,10 @@
 .sca-btn{
   padding: 12px 16px; /* was 12px 18px */
 }
+/* Make Start Room button match the toggle button height */
+#startRoomBtn{
+  padding: 12px 16px !important;       /* match toggle */
+  line-height: normal !important;      /* stop it being “tight” */
+  border: 1px solid transparent !important; /* match toggle border height without showing */
+}
+
