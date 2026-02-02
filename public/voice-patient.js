@@ -38,7 +38,6 @@
 
       if (data.cases.length) sel.value = String(data.cases[data.cases.length - 1]);
       log(`[CASES] loaded ${data.cases.length} cases`);
-
     } catch (err) {
       sel.innerHTML = `<option>Error loading cases</option>`;
       log("[CASES] error: " + (err?.message || String(err)));
@@ -97,10 +96,18 @@
   let audioCtx = null;
   let micStream = null;
   let processor = null;
+  let silentGain = null;
 
   const playbackQueue = [];
   let playing = false;
   let outputSampleRate = 24000;
+
+  // Backpressure / queue limits
+  const WS_BACKPRESSURE_BYTES = 300_000; // drop mic frames if WS buffered above this
+  const MAX_PLAYBACK_QUEUE = 6;          // drop oldest AI audio if we fall behind
+
+  // debug meter (once per sec)
+  let lastNetDebugMs = 0;
 
   async function playPcmChunk(pcmBytesB64, sampleRate) {
     if (!audioCtx) return;
@@ -113,6 +120,12 @@
     buffer.copyToChannel(f32, 0);
 
     playbackQueue.push(buffer);
+
+    // ✅ Cap queue to prevent “AI speaking late”
+    if (playbackQueue.length > MAX_PLAYBACK_QUEUE) {
+      playbackQueue.splice(0, playbackQueue.length - MAX_PLAYBACK_QUEUE);
+    }
+
     if (!playing) {
       playing = true;
       while (playbackQueue.length) {
@@ -158,6 +171,10 @@
     if (processor) {
       try { processor.disconnect(); } catch {}
       processor = null;
+    }
+    if (silentGain) {
+      try { silentGain.disconnect(); } catch {}
+      silentGain = null;
     }
 
     if (micStream) {
@@ -209,20 +226,35 @@
         });
 
         const source = audioCtx.createMediaStreamSource(micStream);
-        processor = audioCtx.createScriptProcessor(2048, 1, 1);
 
-processor.onaudioprocess = (e) => {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        // ✅ Slightly smaller buffer can reduce latency (at some CPU cost)
+        processor = audioCtx.createScriptProcessor(1024, 1, 1);
 
-  const input = e.inputBuffer.getChannelData(0);
-  const pcm16 = downsampleTo16kPCM16(input, audioCtx.sampleRate);
+        processor.onaudioprocess = (e) => {
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-  ws.send(pcm16.buffer);
-};
+          // ✅ Backpressure guard: if we’re congested, drop this mic frame (prevents “lag buildup”)
+          if (ws.bufferedAmount > WS_BACKPRESSURE_BYTES) return;
 
+          const input = e.inputBuffer.getChannelData(0);
+          const pcm16 = downsampleTo16kPCM16(input, audioCtx.sampleRate);
+          ws.send(pcm16.buffer);
+
+          // ✅ lightweight debug once per second
+          const now = performance.now();
+          if (now - lastNetDebugMs > 1000) {
+            lastNetDebugMs = now;
+            log(`[NET] ws.bufferedAmount=${ws.bufferedAmount} playbackQueue=${playbackQueue.length}`);
+          }
+        };
 
         source.connect(processor);
-        processor.connect(audioCtx.destination);
+
+        // ✅ Don’t route mic audio to speakers (reduces echo / feedback).
+        silentGain = audioCtx.createGain();
+        silentGain.gain.value = 0;
+        processor.connect(silentGain);
+        silentGain.connect(audioCtx.destination);
 
         setStatus("Connected. Start talking!");
         safeSetAIState("listening");
@@ -268,16 +300,14 @@ processor.onaudioprocess = (e) => {
         }
       };
 
-ws.onclose = (evt) => {
-  log(`[WS CLOSED] code=${evt.code} reason=${evt.reason || ""}`);
-  cleanup();
-};
+      ws.onclose = (evt) => {
+        log(`[WS CLOSED] code=${evt.code} reason=${evt.reason || ""}`);
+        cleanup();
+      };
 
-
-ws.onerror = (evt) => {
-  log("[WS ERROR] (see console)"); // browser doesn't expose much detail
-};
-
+      ws.onerror = () => {
+        log("[WS ERROR] (see console)");
+      };
     } catch (err) {
       log("[ERROR] " + (err?.message || String(err)));
       setStatus("Error: " + (err?.message || String(err)));
