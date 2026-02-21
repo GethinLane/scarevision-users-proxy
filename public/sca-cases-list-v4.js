@@ -558,7 +558,8 @@ backdrop.innerHTML = `
 
   function buildPanel(panel, records, opts) {
     const { showDiagnosis, showDiff } = opts;
-    const linkField = showDiagnosis ? "Link" : "Link-nt";
+    const isAI = /(^|\.)scarevision\.ai$/i.test(window.location.hostname);
+    const linkField = isAI ? "AI Link" : (showDiagnosis ? "Link" : "Link-nt");
 
     records.sort((a, b) => {
       const textA = showDiagnosis ? a.fields?.["Name"] : a.fields?.["Presenting Complaint"];
