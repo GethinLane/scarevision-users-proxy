@@ -1,6 +1,8 @@
 /**
- * sca-progress.js
+ * sca-progress-for-sca-auth-v2.js
  * ===============
+ * V2: Same as V1 + null/corruption guards on cache read/write + safe number parsing
+ *
  * Purely handles reading and writing user progress (completed + flagged cases).
  * All auth/identity is delegated to sca-auth.js — must be loaded first.
  *
@@ -8,10 +10,12 @@
  *   window.SCAProgress.getProgress()           → Promise<{ completed, flagged }>
  *   window.SCAProgress.setComplete(id, bool)   → Promise<{ completed, flagged }>
  *   window.SCAProgress.setFlag(id, bool)       → Promise<{ completed, flagged }>
+ *   window.SCAProgress.readCachedCompleted()   → number[] | null
+ *   window.SCAProgress.readCachedFlagged()     → number[] | null
  *
  * Load order:
  *   <script defer src="sca-auth.js"></script>
- *   <script defer src="sca-progress.js"></script>
+ *   <script defer src="sca-progress-v2.js"></script>
  */
 
 (() => {
@@ -27,8 +31,6 @@
 
   /* ============================================================
      WAIT FOR SCAAuth
-     sca-auth.js should always be loaded first, but just in case
-     we wait up to 4 seconds before giving up.
   ============================================================ */
   function waitForAuth(maxMs = 4000) {
     return new Promise(resolve => {
@@ -43,27 +45,71 @@
 
 
   /* ============================================================
+     HELPERS
+  ============================================================ */
+
+  /**
+   * ✅ Safe number array: filters out nulls, undefineds, and NaNs.
+   * Prevents corrupted cache entries from propagating.
+   */
+  function toSafeNumberArray(val) {
+    if (!Array.isArray(val)) return [];
+    return val
+      .map(Number)
+      .filter(n => Number.isFinite(n));
+  }
+
+  /**
+   * ✅ Validate a progress object has the expected shape.
+   * Returns true only if both arrays are present and well-formed.
+   */
+  function isValidProgress(obj) {
+    return (
+      obj != null &&
+      typeof obj === 'object' &&
+      Array.isArray(obj.completed) &&
+      Array.isArray(obj.flagged)
+    );
+  }
+
+
+  /* ============================================================
      PROGRESS CACHE
   ============================================================ */
-  const CACHE_KEY    = "sca_progress_v1";
+  const CACHE_KEY     = "sca_progress_v1";
   const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
   function readCache() {
     try {
-      const obj = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+      const raw = localStorage.getItem(CACHE_KEY);
+      // ✅ Guard: if nothing stored, return null cleanly
+      if (!raw) return null;
+
+      const obj = JSON.parse(raw);
+
+      // ✅ Guard: reject stale or malformed cache entries
       if (!obj?.ts || Date.now() - Number(obj.ts) > CACHE_MAX_AGE) return null;
+      if (!isValidProgress(obj)) return null;
+
       return {
-        completed: Array.isArray(obj.completed) ? obj.completed.map(Number) : [],
-        flagged:   Array.isArray(obj.flagged)   ? obj.flagged.map(Number)   : [],
+        completed: toSafeNumberArray(obj.completed),
+        flagged:   toSafeNumberArray(obj.flagged),
       };
-    } catch { return null; }
+    } catch {
+      // ✅ Guard: corrupted JSON — clear it so it doesn't keep failing
+      try { localStorage.removeItem(CACHE_KEY); } catch {}
+      return null;
+    }
   }
 
   function writeCache(progress) {
     try {
+      // ✅ Guard: only write if progress is valid
+      if (!isValidProgress(progress)) return;
+
       localStorage.setItem(CACHE_KEY, JSON.stringify({
-        completed: Array.isArray(progress.completed) ? progress.completed.map(Number) : [],
-        flagged:   Array.isArray(progress.flagged)   ? progress.flagged.map(Number)   : [],
+        completed: toSafeNumberArray(progress.completed),
+        flagged:   toSafeNumberArray(progress.flagged),
         ts:        Date.now(),
       }));
     } catch {}
@@ -88,9 +134,10 @@
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data.ok) throw new Error(data.error || "progress-get failed");
 
+    // ✅ Guard: sanitise API response before using or caching
     const progress = {
-      completed: Array.isArray(data.completed) ? data.completed.map(Number) : [],
-      flagged:   Array.isArray(data.flagged)   ? data.flagged.map(Number)   : [],
+      completed: toSafeNumberArray(data.completed),
+      flagged:   toSafeNumberArray(data.flagged),
     };
     writeCache(progress);
     return progress;
@@ -114,6 +161,10 @@
     const token = await window.SCAAuth.getToken();
     if (!token) throw new Error("No session");
 
+    // ✅ Guard: ensure caseId is a valid finite number before sending
+    const safeCaseId = Number(caseId);
+    if (!Number.isFinite(safeCaseId)) throw new Error(`Invalid caseId: ${caseId}`);
+
     const r    = await fetch(ENDPOINTS.progressUpdate, {
       method: "POST",
       credentials: "include",
@@ -121,18 +172,17 @@
         "Content-Type": "application/json",
         ...window.SCAAuth.authHeaders(token),
       },
-      body: JSON.stringify({ caseId: Number(caseId), action }),
+      body: JSON.stringify({ caseId: safeCaseId, action }),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data.ok) throw new Error(data.error || "progress-update failed");
 
+    // ✅ Guard: sanitise API response before caching
     const progress = {
-      completed: Array.isArray(data.completed) ? data.completed.map(Number) : [],
-      flagged:   Array.isArray(data.flagged)   ? data.flagged.map(Number)   : [],
+      completed: toSafeNumberArray(data.completed),
+      flagged:   toSafeNumberArray(data.flagged),
     };
 
-    // Update cache and invalidate the shared progress promise so
-    // next getProgress() call returns fresh data
     writeCache(progress);
     _progressPromise = Promise.resolve(progress);
 
@@ -154,7 +204,6 @@
   if (window._scaProgressChannel) {
     window._scaProgressChannel.onmessage = e => {
       if (e?.data?.type === "progress-updated") {
-        // Invalidate cached promise so next getProgress() fetches fresh
         _progressPromise = null;
       }
     };
@@ -178,7 +227,6 @@
 
     /**
      * Read completed IDs synchronously from cache (no network).
-     * Useful for instant UI render before async resolves.
      * Returns number[] or null if no cache.
      */
     readCachedCompleted() {
@@ -204,6 +252,6 @@
     },
   };
 
-  console.log("[SCAProgress] loaded");
+  console.log("[SCAProgress] v2 loaded");
 
 })();
