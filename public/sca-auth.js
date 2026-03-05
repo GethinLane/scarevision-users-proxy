@@ -21,10 +21,10 @@
 
   if (window.SCAAuth) return; // already loaded
 
-  const PROXY_BASE  = "https://scarevision-users-proxy.vercel.app";
-  const ID_KEY      = "sca_member_identity";
-  const TOKEN_KEY   = "sca_session_token";
-  const ID_MAX_AGE  = 7 * 24 * 60 * 60 * 1000; // 7 days
+  const PROXY_BASE = "https://scarevision-users-proxy.vercel.app";
+  const ID_KEY     = "sca_member_identity";
+  const TOKEN_KEY  = "sca_session_token";
+  const ID_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 
   /* ============================================================
@@ -70,7 +70,7 @@
         lastName:  p?.name?.lastName  || null,
       };
 
-      // Always update cache with latest live identity
+      // Always update cache with latest live identity + timestamp
       try {
         localStorage.setItem(ID_KEY, JSON.stringify(identity));
         localStorage.setItem(ID_KEY + "_ts", String(Date.now()));
@@ -84,13 +84,18 @@
   /**
    * Read identity from localStorage synchronously.
    * Returns identity object or null if missing / expired.
+   *
+   * FIX: Only reject on expiry if _ts actually exists.
+   * If _ts is missing (written by another script that doesn't set it),
+   * we still use the cached identity — we just can't check expiry.
    */
   function readCachedIdentity() {
     try {
       const raw = localStorage.getItem(ID_KEY);
-      const ts  = Number(localStorage.getItem(ID_KEY + "_ts") || 0);
       if (!raw) return null;
-      if (ts && Date.now() - ts > ID_MAX_AGE) return null;
+      const ts = Number(localStorage.getItem(ID_KEY + "_ts") || 0);
+      // Only apply expiry check if a timestamp was actually written
+      if (ts > 0 && Date.now() - ts > ID_MAX_AGE) return null;
       const obj = JSON.parse(raw);
       if (obj?.id && obj?.email) return obj;
     } catch {}
@@ -100,16 +105,25 @@
   // Single shared identity promise — resolves once per page load
   let _identityPromise = null;
 
+  /**
+   * FIX: Don't permanently cache a null result.
+   * If identity resolves to null, clear the promise so the next
+   * call retries rather than being stuck returning null forever.
+   */
   function getIdentity() {
     if (_identityPromise) return _identityPromise;
     _identityPromise = (async () => {
-      // Kick off live fetch immediately
+      // 1. Try live Squarespace session first
       const live = await fetchLiveIdentity();
       if (live) return live;
 
-      // Fall back to cache
+      // 2. Fall back to localStorage cache
       return readCachedIdentity();
     })();
+
+    // Don't cache null — allow retry on next call
+    _identityPromise.then(v => { if (!v) _identityPromise = null; });
+
     return _identityPromise;
   }
 
@@ -181,6 +195,10 @@
         return null;
       }
     })();
+
+    // Don't cache null — allow retry on next call
+    _tokenPromise.then(v => { if (!v) _tokenPromise = null; });
+
     return _tokenPromise;
   }
 
