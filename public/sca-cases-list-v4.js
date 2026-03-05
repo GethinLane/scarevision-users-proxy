@@ -368,13 +368,17 @@ backdrop.innerHTML = `
     refreshCasesInBackground(cached);
   }
 
-  function signatureOf(records) {
+function signatureOf(records) {
     try {
       const n = records.length;
       const first = records[0]?.id || "";
       const mid = records[Math.floor(n / 2)]?.id || "";
       const last = records[n - 1]?.id || "";
-      return `${n}|${first}|${mid}|${last}`;
+      const aiLinkHash = records
+        .filter((r) => !!r.fields?.["AI Link"])
+        .map((r) => r.id)
+        .join(",");
+      return `${n}|${first}|${mid}|${last}|${aiLinkHash}`;
     } catch {
       return String(Date.now());
     }
