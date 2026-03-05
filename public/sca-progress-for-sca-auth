@@ -20,6 +20,10 @@
   if (window.SCAProgress) return; // already loaded
 
   const PROXY_BASE = "https://scarevision-users-proxy.vercel.app";
+  const ENDPOINTS  = {
+    progressGet:    `${PROXY_BASE}/api/progress-get-v2`,
+    progressUpdate: `${PROXY_BASE}/api/progress-update-v2`,
+  };
 
   /* ============================================================
      WAIT FOR SCAAuth
@@ -76,7 +80,7 @@
     const token = await window.SCAAuth.getToken();
     if (!token) throw new Error("No session");
 
-    const r    = await fetch(`${PROXY_BASE}/api/progress-get-v2`, {
+    const r    = await fetch(ENDPOINTS.progressGet, {
       method: "POST",
       credentials: "include",
       headers: window.SCAAuth.authHeaders(token),
@@ -110,7 +114,7 @@
     const token = await window.SCAAuth.getToken();
     if (!token) throw new Error("No session");
 
-    const r    = await fetch(`${PROXY_BASE}/api/progress-update-v2`, {
+    const r    = await fetch(ENDPOINTS.progressUpdate, {
       method: "POST",
       credentials: "include",
       headers: {
