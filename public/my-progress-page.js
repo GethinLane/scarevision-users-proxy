@@ -1,25 +1,30 @@
 /**
- * SCA Dashboard — Unified Script
- * ================================
- * Single source of truth for all dashboard functionality.
- * Load once via <script src="..." defer></script> in the page header.
+ * SCA Dashboard — Unified Script v2
+ * ====================================
+ * One file. One auth strategy. Cache first, everywhere.
  *
- * Replaces ALL inline scripts for:
- *   - Shared auth (SCA.progressReady) — runs ONCE, everything else awaits it
- *   - Case map (SCA_CASE_MAP) — loaded from Airtable, no auth needed
- *   - Welcome name (#dashWelcomeName)
- *   - Case completion card (#scaCaseCompletionCard)
- *   - Progress breakdown (#scaBreakdownCard)
- *   - Exam date hero (#scaHeroExamCard)
+ * Pattern (mirrors the welcome name script throughout):
+ *   1. Read from localStorage cache       → render/use instantly, no network
+ *   2. If sca_session_token is valid      → call proxy directly, no SCAProgress
+ *   3. If token missing/expired           → await SCA.progressReady (re-auth once)
+ *   4. Update cache after live fetch      → next visit skips auth entirely
+ *
+ * Covers:
+ *   - Shared auth bootstrap  (SCA.progressReady — runs ONCE if needed)
+ *   - Case map               (Airtable, public, no auth)
+ *   - Welcome name           (#dashWelcomeName)
+ *   - Case completion card   (#scaCaseCompletionCard)
+ *   - Progress breakdown     (#scaBreakdownCard)
+ *   - Exam date hero         (#scaHeroExamCard)
  */
 
 (() => {
   'use strict';
 
   /* ============================================================
-     1. SHARED AUTH
-     ONE init, ONE promise. Everything else awaits window.SCA.progressReady.
-     Never call SCAProgress.init() directly anywhere else.
+     1. SHARED AUTH BOOTSTRAP
+     SCAProgress.init() runs AT MOST ONCE per page load.
+     Only called if the cached session token is missing or expired.
   ============================================================ */
   window.SCA = window.SCA || {};
 
@@ -31,7 +36,7 @@
       }
       if (!window.SCAProgress?.init) return null;
       try {
-        return await window.SCAProgress.init(); // runs exactly once
+        return await window.SCAProgress.init(); // exactly once
       } catch {
         return null;
       }
@@ -40,18 +45,116 @@
 
 
   /* ============================================================
-     2. CASE MAP  (no auth needed — start immediately)
+     2. SESSION TOKEN HELPERS
+     The proxy uses a signed Bearer token stored as sca_session_token.
+     Reading this (like sca_member_identity in the welcome script) lets
+     us call the proxy directly without touching SCAProgress at all.
+  ============================================================ */
+  const PROXY_BASE = "https://scarevision-users-proxy.vercel.app";
+  const TOKEN_KEY  = "sca_session_token";
+
+  /** Returns the raw token string if present and not yet expired, else null. */
+  function readToken() {
+    try {
+      const t = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || "";
+      if (!t) return null;
+      // Peek at expiry from the base64url payload — no full verify needed client-side
+      const payload = JSON.parse(atob(t.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")));
+      if (!payload?.exp || Date.now() > Number(payload.exp)) return null;
+      return t;
+    } catch { return null; }
+  }
+
+  function authHeaders(token) {
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  /**
+   * Fetch progress (completed + flagged arrays) using the cached token.
+   * If the token is missing or rejected, falls back to SCA.progressReady
+   * to re-authenticate (writing a fresh token to localStorage), then retries.
+   * Returns { completed: number[], flagged: number[] } or null on failure.
+   */
+  async function getProgress() {
+    // Fast path — valid cached token, call proxy directly (no SCAProgress)
+    let token = readToken();
+    if (token) {
+      try {
+        const r    = await fetch(`${PROXY_BASE}/api/progress-get-v2`, {
+          method: "POST", credentials: "include",
+          headers: authHeaders(token)
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.ok && data.ok) return data;
+        // Token was structurally valid but rejected server-side — fall through
+      } catch {}
+    }
+
+    // Slow path — need SCAProgress to (re-)authenticate.
+    // This is the ONLY place SCAProgress is ever invoked.
+    const res = await window.SCA.progressReady;
+    if (!res) return null;
+
+    // SCAProgress.init() writes a fresh token to localStorage
+    token = readToken();
+    if (!token) {
+      // Older build: progressReady itself returned progress data directly
+      if (Array.isArray(res?.progress?.completed)) return res.progress;
+      return null;
+    }
+
+    try {
+      const r    = await fetch(`${PROXY_BASE}/api/progress-get-v2`, {
+        method: "POST", credentials: "include",
+        headers: authHeaders(token)
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.ok) return data;
+    } catch {}
+
+    return null;
+  }
+
+
+  /* ============================================================
+     3. PROGRESS CACHE  (shared across all widgets on the page)
+     Same key as before — completion card and breakdown share this.
+  ============================================================ */
+  const PROGRESS_CACHE_KEY = "sca_cc_completed_ids_v1";
+  const PROGRESS_MAX_AGE   = 24 * 60 * 60 * 1000;
+
+  function readProgressCache() {
+    try {
+      const obj = JSON.parse(localStorage.getItem(PROGRESS_CACHE_KEY) || "null");
+      if (!obj?.ts || Date.now() - Number(obj.ts) > PROGRESS_MAX_AGE) return null;
+      if (!Array.isArray(obj.completed)) return null;
+      return obj.completed.map(Number);
+    } catch { return null; }
+  }
+
+  function writeProgressCache(completedIds) {
+    try {
+      localStorage.setItem(PROGRESS_CACHE_KEY, JSON.stringify({
+        completed: Array.isArray(completedIds) ? completedIds.map(Number) : [],
+        ts: Date.now()
+      }));
+    } catch {}
+  }
+
+
+  /* ============================================================
+     4. CASE MAP  (Airtable, public — no auth, start immediately)
   ============================================================ */
   async function loadCaseMap() {
     try {
-      const r = await fetch(
+      const r    = await fetch(
         "https://scarevision-airtable-proxy.vercel.app/api/cases-list-data",
         { cache: "no-store" }
       );
       const data = await r.json();
       const records = Array.isArray(data.records) ? data.records : [];
 
-      const asArray = (v) => {
+      const asArray = v => {
         if (Array.isArray(v)) return v.map(String).map(s => s.trim()).filter(Boolean);
         if (typeof v === "string") return v.split(",").map(s => s.trim()).filter(Boolean);
         return [];
@@ -59,8 +162,8 @@
 
       window.SCA_CASE_MAP = records
         .map(rec => {
-          const f = rec.fields || {};
-          const id = Number(f["Case ID"]);
+          const f    = rec.fields || {};
+          const id   = Number(f["Case ID"]);
           const name = String(f["Name"] || "").trim();
           if (!Number.isFinite(id) || !name) return null;
           return {
@@ -82,7 +185,7 @@
 
 
   /* ============================================================
-     3. SHARED UTILITIES
+     5. SHARED UTILITIES
   ============================================================ */
   function onReady(fn) {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn);
@@ -101,15 +204,20 @@
   }
 
   function escapeHtml(s) {
-    return String(s ?? "").replace(/[&<>"']/g, ch => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
-    }[ch]));
+    return String(s ?? "").replace(/[&<>"']/g, ch =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch])
+    );
+  }
+
+  function showLoginNotice() {
+    const el = document.getElementById("scaInlineLoginNotice");
+    if (el) el.hidden = false;
   }
 
 
   /* ============================================================
-     4. WELCOME NAME  (#dashWelcomeName)
-     — Shows first + last name from cache instantly, then updates live.
+     6. WELCOME NAME  (#dashWelcomeName)
+     Original working pattern — kept exactly as-is.
   ============================================================ */
   function initWelcomeName() {
     const el = document.getElementById("dashWelcomeName");
@@ -121,21 +229,19 @@
       return [first, last].filter(Boolean).join(" ");
     }
 
-    function setName(name) {
-      el.textContent = name ? `, ${name}` : "";
-    }
+    function setName(name) { el.textContent = name ? `, ${name}` : ""; }
 
-    // Instant: read from localStorage cache
+    // Step 1: instant from cache (sca_member_identity written by SCAProgress)
     try {
       const cached = JSON.parse(localStorage.getItem("sca_member_identity") || "null");
-      const name = formatName(cached);
+      const name   = formatName(cached);
       if (name) setName(name);
     } catch {}
 
-    // Live: update once auth resolves
+    // Step 2: live update once auth resolves (only if needed)
     (async () => {
       try {
-        const res = await window.SCA.progressReady;
+        const res  = await window.SCA.progressReady;
         const name = formatName(res?.identity);
         if (name) setName(name);
       } catch {}
@@ -144,16 +250,14 @@
 
 
   /* ============================================================
-     5. CASE COMPLETION CARD  (#scaCaseCompletionCard)
-     — Donut chart of completed / total cases.
+     7. CASE COMPLETION CARD  (#scaCaseCompletionCard)
+     Cache first → proxy with token → progressReady fallback.
   ============================================================ */
   function initCaseCompletionCard() {
     const countEl = document.getElementById("scaCcCompletedCount");
-    if (!countEl) return; // card not present on this page
+    if (!countEl) return;
 
-    const TOTAL       = 353;
-    const CACHE_KEY   = "sca_cc_completed_ids_v1";
-    const MAX_AGE_MS  = 24 * 60 * 60 * 1000;
+    const TOTAL = 353;
 
     const toggle  = document.getElementById("scaCcTrackToggle");
     const panel   = document.getElementById("scaCcTrackPanel");
@@ -161,7 +265,6 @@
     const pctEl   = document.getElementById("scaCcPctText");
     const ringFg  = document.getElementById("scaCcRingFg");
 
-    // Help panel toggle
     if (toggle && panel) {
       toggle.addEventListener("click", () => {
         const open = toggle.getAttribute("aria-expanded") === "true";
@@ -172,57 +275,41 @@
 
     if (totalEl) totalEl.textContent = String(TOTAL);
 
-    const CIRCUMFERENCE = 2 * Math.PI * 46; // r=46
+    const C = 2 * Math.PI * 46;
 
-    function render(completedCount) {
-      const safe  = Math.max(0, Math.min(TOTAL, Number(completedCount) || 0));
-      const pct   = TOTAL > 0 ? safe / TOTAL : 0;
+    function render(completedIds) {
+      const n    = Array.isArray(completedIds) ? completedIds.length : Number(completedIds) || 0;
+      const safe = Math.max(0, Math.min(TOTAL, n));
+      const pct  = TOTAL > 0 ? safe / TOTAL : 0;
       countEl.textContent = String(safe);
-      if (pctEl)   pctEl.textContent  = `${Math.round(pct * 100)}%`;
-      if (ringFg)  ringFg.style.strokeDasharray = `${CIRCUMFERENCE * pct} ${CIRCUMFERENCE * (1 - pct)}`;
+      if (pctEl)  pctEl.textContent            = `${Math.round(pct * 100)}%`;
+      if (ringFg) ringFg.style.strokeDasharray = `${C * pct} ${C * (1 - pct)}`;
     }
 
-    function readCache() {
-      try {
-        const obj = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-        if (!obj?.ts || Date.now() - Number(obj.ts) > MAX_AGE_MS) return null;
-        if (!Array.isArray(obj.completed)) return null;
-        return obj;
-      } catch { return null; }
-    }
+    // Step 1: render from cache instantly
+    const cached = readProgressCache();
+    render(cached || []);
 
-    function writeCache(ids) {
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          completed: Array.isArray(ids) ? ids : [],
-          ts: Date.now()
-        }));
-      } catch {}
-    }
-
-    // Render from cache instantly
-    const cached = readCache();
-    render(cached?.completed?.length || 0);
-
-    // Live update via shared auth
+    // Step 2: live update — token first, progressReady fallback
     (async () => {
       try {
-        const res = await window.SCA.progressReady;
-        const ids = Array.isArray(res?.progress?.completed) ? res.progress.completed : [];
-        render(ids.length);
-        writeCache(ids);
+        const progress = await getProgress();
+        const ids      = Array.isArray(progress?.completed) ? progress.completed : [];
+        render(ids);
+        writeProgressCache(ids);
       } catch {}
     })();
   }
 
 
   /* ============================================================
-     6. PROGRESS BREAKDOWN  (#scaBreakdownCard)
-     — Topic / group bars with expandable case tables.
+     8. PROGRESS BREAKDOWN  (#scaBreakdownCard)
+     Cache → Airtable case map → render immediately.
+     Live auth in background, re-renders only if data changed.
   ============================================================ */
   function initProgressBreakdown() {
     const barsEl = document.getElementById("scaBreakdownBars");
-    if (!barsEl) return; // not on this page
+    if (!barsEl) return;
 
     const btnTopics   = document.getElementById("scaModeTopics");
     const btnGroups   = document.getElementById("scaModeGroups");
@@ -238,11 +325,6 @@
     let labelToIds   = new Map();
     let openLabel    = null;
 
-    function showLoginNotice() {
-      const el = document.getElementById("scaInlineLoginNotice");
-      if (el) el.hidden = false;
-    }
-
     function getCaseName(id, mappingIndex) {
       return mappingIndex?.get(id)?.name || window.SCA_CASE_NAMES?.[id] || null;
     }
@@ -252,14 +334,13 @@
       for (const row of (mapping || [])) {
         const id = Number(row?.id);
         if (!Number.isFinite(id)) continue;
-        const labels = Array.isArray(row?.[key]) ? row[key] : [];
-        const uniq = [...new Set(labels.map(v => String(v).trim()).filter(Boolean))];
+        const uniq = [...new Set((Array.isArray(row?.[key]) ? row[key] : []).map(v => String(v).trim()).filter(Boolean))];
         for (const label of uniq) {
           if (!m.has(label)) m.set(label, []);
           m.get(label).push(id);
         }
       }
-      for (const [k, arr] of m.entries()) m.set(k, arr.sort((a, b) => a - b));
+      for (const [k, arr] of m) m.set(k, arr.sort((a, b) => a - b));
       return m;
     }
 
@@ -268,8 +349,7 @@
       for (const row of (mapping || [])) {
         const id = Number(row?.id);
         if (!Number.isFinite(id)) continue;
-        const labels = Array.isArray(row?.[key]) ? row[key] : [];
-        const uniq = [...new Set(labels.map(v => String(v).trim()).filter(Boolean))];
+        const uniq = [...new Set((Array.isArray(row?.[key]) ? row[key] : []).map(v => String(v).trim()).filter(Boolean))];
         for (const label of uniq) {
           if (!stats.has(label)) stats.set(label, { total: 0, done: 0 });
           const s = stats.get(label);
@@ -335,14 +415,12 @@
         <div class="sca-case-head">
           <div></div><div>Case</div><div style="text-align:right;">Status</div>
         </div>`;
-
       if (!ids.length) return head + `
         <div class="sca-case-row">
           <div class="sca-case-tick is-todo">•</div>
           <div style="font-weight:800;color:#6c7485;">No cases found.</div>
           <div class="sca-case-status is-todo">—</div>
         </div>`;
-
       return head + ids.map(id => {
         const done  = completedSet.has(id);
         const label = getCaseName(id, mappingIndex) || `Case ${id}`;
@@ -362,19 +440,15 @@
     function openLabelPanel(label, mappingIndex) {
       closeAll();
       openLabel = label;
-
       const exp = barsEl.querySelector(`.sca-expand[data-label="${CSS.escape(label)}"]`);
       const bar = barsEl.querySelector(`.sca-bar[data-label="${CSS.escape(label)}"]`);
       if (!exp) return;
-
       if (bar) bar.setAttribute("aria-expanded", "true");
-
       if (!exp.dataset.built) {
         const table = exp.querySelector(".sca-case-table");
         if (table) table.innerHTML = buildCaseTableHtml(labelToIds.get(label) || [], mappingIndex);
         exp.dataset.built = "1";
       }
-
       exp.classList.add("is-open");
       exp.style.maxHeight = exp.scrollHeight + "px";
     }
@@ -384,30 +458,27 @@
         barsEl.innerHTML = `<div style="padding:10px 0;color:#6c7485;font-weight:800;">No breakdown data found.</div>`;
         return;
       }
-
       const sorted = [...rows].sort((a, b) => (b.pct - a.pct) || (b.done - a.done));
-
       barsEl.innerHTML = sorted.map(r => {
-        const pct   = Math.round(r.pct * 100);
-        const fill  = `${pct}%`;
-        const label = r.label;
+        const pct  = Math.round(r.pct * 100);
+        const fill = `${pct}%`;
         return `
           <div class="sca-bar-row">
             <div class="sca-bar" role="button" tabindex="0" aria-expanded="false"
-                 data-label="${escapeHtml(label)}">
+                 data-label="${escapeHtml(r.label)}">
               <div class="sca-bar-fill" style="width:${fill}"></div>
               <div class="sca-bar-label dark">
-                <span class="sca-bar-name" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+                <span class="sca-bar-name" title="${escapeHtml(r.label)}">${escapeHtml(r.label)}</span>
               </div>
               <div class="sca-bar-label-mask" style="width:${fill}">
                 <div class="sca-bar-label light">
-                  <span class="sca-bar-name" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+                  <span class="sca-bar-name" title="${escapeHtml(r.label)}">${escapeHtml(r.label)}</span>
                 </div>
               </div>
               <div class="sca-bar-count">${r.done}/${r.total}</div>
             </div>
             <div class="sca-bar-pct">${pct}%</div>
-            <div class="sca-expand" data-label="${escapeHtml(label)}">
+            <div class="sca-expand" data-label="${escapeHtml(r.label)}">
               <div class="sca-expand-inner"><div class="sca-case-table"></div></div>
             </div>
           </div>`;
@@ -424,7 +495,6 @@
           if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
         });
       });
-
       closeAll();
     }
 
@@ -433,16 +503,20 @@
       const isTopics = mode === "topic";
       if (btnTopics) btnTopics.classList.toggle("is-active", isTopics);
       if (btnGroups) btnGroups.classList.toggle("is-active", !isTopics);
-
       labelToIds = buildLabelToIds(mapping, isTopics ? "topics" : "groups");
       const rows = isTopics ? topicRows : groupRows;
-
       renderStrongAndWeak(rows);
       renderBars(rows, mappingIndex);
       closeAll();
     }
 
-    // Mode toggle buttons
+    function buildAndRender(mapping, mappingIndex) {
+      topicRows = statsToRows(buildStats(mapping, "topics"));
+      groupRows = statsToRows(buildStats(mapping, "groups"));
+      window.__sca_cache = { mapping, mappingIndex };
+      setMode(topicRows.length ? "topic" : "group", mapping, mappingIndex);
+    }
+
     if (btnTopics) btnTopics.addEventListener("click", () => {
       if (window.__sca_cache) setMode("topic", window.__sca_cache.mapping, window.__sca_cache.mappingIndex);
     });
@@ -450,10 +524,24 @@
       if (window.__sca_cache) setMode("group", window.__sca_cache.mapping, window.__sca_cache.mappingIndex);
     });
 
-    // Boot
+    // Boot — mirrors the welcome script pattern:
+    // Step 1: read completed IDs from localStorage — instant, no network
+    // Step 2: wait for Airtable case map (public, no auth) → render immediately with cached IDs
+    // Step 3: fetch live progress in background (token first, progressReady only if needed)
+    //         → re-render only if data actually changed
     (async () => {
-      barsEl.innerHTML = `<div style="padding:10px 0;color:#6c7485;font-weight:800;">Loading…</div>`;
+      // Step 1: grab cached IDs immediately — same as welcome name reads sca_member_identity
+      const cachedIds = readProgressCache();
+      if (cachedIds) {
+        completedSet = new Set(cachedIds);
+      }
 
+      // Show spinner only if case map hasn't resolved yet
+      if (!Array.isArray(window.SCA_CASE_MAP)) {
+        barsEl.innerHTML = `<div style="padding:10px 0;color:#6c7485;font-weight:800;">Loading…</div>`;
+      }
+
+      // Step 2: wait for public Airtable case map — no auth needed
       const ok = await waitFor(() => Array.isArray(window.SCA_CASE_MAP), 20000);
       if (!ok) {
         barsEl.innerHTML = `<div style="padding:10px 0;color:#6c7485;font-weight:800;">Cases not available.</div>`;
@@ -467,53 +555,50 @@
         if (Number.isFinite(id)) mappingIndex.set(id, row);
       }
 
-      // ✅ Single shared auth call
-      try {
-        const res          = await window.SCA.progressReady;
-        const completedIds = Array.isArray(res?.progress?.completed) ? res.progress.completed : [];
-        completedSet       = new Set(completedIds.map(Number));
-        if (!res) showLoginNotice();
-      } catch (e) {
-        console.warn("[SCA] Breakdown: progress fetch failed:", e);
-        showLoginNotice();
-        completedSet = new Set();
-      }
+      // Render now with cached IDs — page looks complete before any auth
+      buildAndRender(mapping, mappingIndex);
 
-      topicRows = statsToRows(buildStats(mapping, "topics"));
-      groupRows = statsToRows(buildStats(mapping, "groups"));
-      window.__sca_cache = { mapping, mappingIndex };
+      // Step 3: live progress silently in background
+      // getProgress() uses cached token first — only hits SCAProgress if token is gone
+      (async () => {
+        try {
+          const progress = await getProgress();
+          const liveIds  = Array.isArray(progress?.completed)
+            ? progress.completed.map(Number)
+            : null;
 
-      setMode(topicRows.length ? "topic" : "group", mapping, mappingIndex);
+          if (!liveIds) {
+            // No live data — if we had no cache either, nudge user to log in
+            if (!cachedIds) showLoginNotice();
+            return;
+          }
+
+          // Re-render only if live data differs from what we already showed
+          const changed = liveIds.length !== completedSet.size ||
+            liveIds.some(id => !completedSet.has(id));
+
+          if (changed) {
+            completedSet = new Set(liveIds);
+            buildAndRender(mapping, mappingIndex);
+          }
+
+          writeProgressCache(liveIds);
+        } catch (e) {
+          console.warn("[SCA] Breakdown live refresh failed:", e);
+        }
+      })();
     })();
   }
 
 
   /* ============================================================
-     7. EXAM DATE HERO  (#scaHeroExamCard)
-     — Show / set / countdown to exam date.
+     9. EXAM DATE HERO  (#scaHeroExamCard)
+     Cache first → proxy with token → progressReady fallback.
   ============================================================ */
   function initExamDateHero() {
     if (window.__scaHeroExamInit) return;
     window.__scaHeroExamInit = true;
 
-    const API_BASE   = "https://scarevision-users-proxy.vercel.app";
-    const TOKEN_KEY  = "sca_session_token";
-    let   MEM_TOKEN  = "";
-
-    // Token helpers (still needed for API calls after auth)
-    function readToken() {
-      if (MEM_TOKEN) return MEM_TOKEN;
-      try { const t = localStorage.getItem(TOKEN_KEY);  if (t) return (MEM_TOKEN = t); } catch {}
-      try { const t = sessionStorage.getItem(TOKEN_KEY); if (t) return (MEM_TOKEN = t); } catch {}
-      return "";
-    }
-
-    function authHeaders() {
-      const t = readToken();
-      return t ? { Authorization: `Bearer ${t}` } : {};
-    }
-
-    // DOM refs
     const dateText  = document.getElementById("scaHeroExamDateText");
     const changeBtn = document.getElementById("scaHeroExamChangeBtn");
     const editor    = document.getElementById("scaHeroExamEditor");
@@ -531,12 +616,11 @@
 
     if (!dateText || !changeBtn || !editor || !inputEl || !saveBtn || !msgEl || !countdown || !weeksEl || !daysEl) return;
 
-    function showLoginNotice() { if (loginNotice) loginNotice.hidden = false; }
-    function hideLoginNotice() { if (loginNotice) loginNotice.hidden = true;  }
+    function hideLoginNotice() { if (loginNotice) loginNotice.hidden = true; }
 
-    // Wire the "log in again" link to trigger the Squarespace account overlay
+    // Wire "log in again" link → Squarespace account overlay
     if (loginLink) {
-      const activate = (e) => {
+      const activate = e => {
         if (e.type !== "click" && e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault?.();
         const selectors = [
@@ -550,8 +634,9 @@
           if (el) { el.click(); clicked = true; break; }
         }
         if (!clicked) {
-          const fallback = [...document.querySelectorAll("header a, header button, nav a, nav button")]
-            .find(el => ["account","log in","login","sign in"].includes((el.textContent || "").trim().toLowerCase()));
+          const fallback = [...document.querySelectorAll("header a,header button,nav a,nav button")]
+            .find(el => ["account","log in","login","sign in"]
+              .includes((el.textContent || "").trim().toLowerCase()));
           if (fallback) fallback.click();
           else alert("Please use the Account / Log in button in the site header.");
         }
@@ -560,34 +645,32 @@
       loginLink.addEventListener("keydown", activate);
     }
 
-    // Date helpers
     function formatPretty(ymd) {
       const [y, m, d] = String(ymd).split("-").map(Number);
-      return new Date(y, (m || 1) - 1, d || 1).toLocaleDateString(undefined, {
+      return new Date(y, (m||1)-1, d||1).toLocaleDateString(undefined, {
         weekday: "long", year: "numeric", month: "long", day: "numeric"
       });
     }
 
     function calcWeeksDays(ymd) {
       const [y, m, d] = String(ymd).split("-").map(Number);
-      const exam  = new Date(y, (m || 1) - 1, d || 1);
-      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const exam  = new Date(y, (m||1)-1, d||1);
+      const today = new Date(); today.setHours(0,0,0,0);
       const diff  = Math.max(0, Math.ceil((exam - today) / 86400000));
       return { weeks: Math.floor(diff / 7), days: diff % 7 };
     }
 
-    // UI state helpers
     function hideAllPanels() {
       editor.hidden = true;
       if (disWrap) disWrap.hidden = true;
     }
 
-    function showEditor(withMsg) {
+    function showEditor(msg) {
       if (disWrap) disWrap.hidden = true;
-      editor.hidden   = false;
+      editor.hidden    = false;
       countdown.hidden = true;
       changeBtn.hidden = true;
-      msgEl.textContent = withMsg == null ? "" : String(withMsg);
+      msgEl.textContent = msg == null ? "" : String(msg);
     }
 
     function showDisclaimer() {
@@ -605,61 +688,61 @@
 
     function showCountdown(examDateStr) {
       hideAllPanels();
-      countdown.hidden  = false;
-      changeBtn.hidden  = false;
+      countdown.hidden      = false;
+      changeBtn.hidden      = false;
       changeBtn.textContent = "Change exam date";
       dateText.textContent  = formatPretty(examDateStr);
       const { weeks, days } = calcWeeksDays(examDateStr);
-      weeksEl.textContent = String(weeks);
-      daysEl.textContent  = String(days);
+      weeksEl.textContent   = String(weeks);
+      daysEl.textContent    = String(days);
       hideLoginNotice();
     }
 
     function showNoDate() {
       hideAllPanels();
-      countdown.hidden  = true;
-      changeBtn.hidden  = false;
+      countdown.hidden      = true;
+      changeBtn.hidden      = false;
       changeBtn.textContent = "Set exam date";
       dateText.textContent  = "No exam date set";
       msgEl.textContent     = "";
       hideLoginNotice();
     }
 
-    // Cache
-    const EXAM_CACHE_KEY = "sca_exam_date_v1";
-    const EXAM_MAX_AGE   = 7 * 24 * 60 * 60 * 1000;
+    // Exam date cache
+    const EXAM_KEY     = "sca_exam_date_v1";
+    const EXAM_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
     function readExamCache() {
       try {
-        const obj = JSON.parse(localStorage.getItem(EXAM_CACHE_KEY) || "null");
+        const obj = JSON.parse(localStorage.getItem(EXAM_KEY) || "null");
         if (!obj?.ts || Date.now() - Number(obj.ts) > EXAM_MAX_AGE) return null;
-        if (!obj.examDate) return null;
-        return obj;
+        return obj.examDate || null;
       } catch { return null; }
     }
 
     function writeExamCache(examDate) {
       try {
-        if (!examDate) { localStorage.removeItem(EXAM_CACHE_KEY); return; }
-        localStorage.setItem(EXAM_CACHE_KEY, JSON.stringify({ examDate: String(examDate), ts: Date.now() }));
+        if (!examDate) { localStorage.removeItem(EXAM_KEY); return; }
+        localStorage.setItem(EXAM_KEY, JSON.stringify({ examDate: String(examDate), ts: Date.now() }));
       } catch {}
     }
 
-    // API calls
-    async function getExamDate() {
-      const r = await fetch(`${API_BASE}/api/exam-date-get`, {
+    async function fetchExamDate() {
+      const token = readToken();
+      const r = await fetch(`${PROXY_BASE}/api/exam-date-get`, {
         method: "POST", credentials: "include",
-        headers: { ...authHeaders() }
+        headers: authHeaders(token)
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok || !data.ok) throw new Error(data.error || "exam-date-get failed");
       return data.examDate || null;
     }
 
-    async function setExamDate(val) {
-      const r = await fetch(`${API_BASE}/api/exam-date-set`, {
+    async function saveExamDate(val) {
+      const token = readToken();
+      const r = await fetch(`${PROXY_BASE}/api/exam-date-set`, {
         method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
         body: JSON.stringify({ examDate: val })
       });
       const data = await r.json().catch(() => ({}));
@@ -667,16 +750,16 @@
       return true;
     }
 
-    // Render from cache immediately
+    // Step 1: render from cache instantly
     const cachedExam = readExamCache();
-    if (cachedExam?.examDate) {
-      showCountdown(cachedExam.examDate);
+    if (cachedExam) {
+      showCountdown(cachedExam);
     } else {
-      dateText.textContent  = "Loading…";
-      countdown.hidden      = true;
-      editor.hidden         = true;
+      dateText.textContent = "Loading…";
+      countdown.hidden     = true;
+      editor.hidden        = true;
       if (disWrap) disWrap.hidden = true;
-      changeBtn.hidden      = true;
+      changeBtn.hidden     = true;
     }
 
     // Button wiring
@@ -689,43 +772,37 @@
       if (!val) { msgEl.textContent = "Please select a date."; return; }
       msgEl.textContent = "Saving…";
       try {
-        // ✅ Shared auth first, then use resulting token for API call
-        const res = await window.SCA.progressReady;
-        if (!res && !readToken()) {
-          msgEl.textContent = "Please log in again to confirm your account.";
+        // Ensure valid token before writing — re-auth only if necessary
+        if (!readToken()) await window.SCA.progressReady;
+        if (!readToken()) {
+          msgEl.textContent = "Please log in again to save your exam date.";
           showLoginNotice();
           return;
         }
-        await setExamDate(val);
+        await saveExamDate(val);
         writeExamCache(val);
         msgEl.textContent = "";
         showCountdown(val);
       } catch {
-        msgEl.textContent = "Could not save exam date. Please try again.";
+        msgEl.textContent = "Could not save. Please try again.";
       }
     });
 
-    // Live refresh — ✅ shared auth only
+    // Step 2: live refresh — token first, progressReady only if token is missing
     (async () => {
       try {
-        const res = await window.SCA.progressReady;
-        if (!res && !readToken()) {
-          showLoginNotice();
-          if (!cachedExam?.examDate) dateText.textContent = "Please log in again";
+        if (!readToken()) await window.SCA.progressReady;
+        if (!readToken()) {
+          if (!cachedExam) { showLoginNotice(); dateText.textContent = "Please log in"; }
           return;
         }
-        const live = await getExamDate();
-        if (live) {
-          showCountdown(live);
-          writeExamCache(live);
-        } else {
-          writeExamCache(null);
-          showNoDate();
-        }
+        const live = await fetchExamDate();
+        if (live) { showCountdown(live); writeExamCache(live); }
+        else      { writeExamCache(null); showNoDate(); }
       } catch {
-        if (!cachedExam?.examDate) {
+        if (!cachedExam) {
           dateText.textContent = "Unable to load exam date";
-          showEditor("Please refresh. If it keeps happening, log in again.");
+          showEditor("Please refresh or log in again.");
         }
         showLoginNotice();
       }
@@ -735,10 +812,8 @@
 
   /* ============================================================
      BOOT
-     Load case map immediately (no auth needed).
-     Init all UI modules once the DOM is ready.
   ============================================================ */
-  loadCaseMap();
+  loadCaseMap(); // public fetch — starts immediately, no auth
 
   onReady(() => {
     initWelcomeName();
