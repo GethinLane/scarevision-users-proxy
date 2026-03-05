@@ -11,7 +11,7 @@
  *
  * Auth order:
  *   1. Live Squarespace session (crumb cookies) — freshest, updates cache
- *   2. localStorage sca_member_identity cache   — instant fallback
+ *   2. localStorage sca_member_identity cache   — fallback, used regardless of age
  *   3. session-start-v2 proxy call              — writes signed token
  *   4. Token cached in sca_session_token        — skips steps 1-3 next visit
  */
@@ -82,22 +82,24 @@
   }
 
   /**
-   * Read identity from localStorage synchronously.
-   * Returns identity object or null if missing / expired.
-   *
-   * FIX: Only reject on expiry if _ts actually exists.
-   * If _ts is missing (written by another script that doesn't set it),
-   * we still use the cached identity — we just can't check expiry.
+   * Read identity from localStorage.
+   * 
+   * strict=true  — respects the 7-day expiry (used for readIdentity() public API)
+   * strict=false — ignores expiry, uses cache regardless of age (used as last
+   *                resort fallback in getIdentity() when live fetch fails, since
+   *                identity data like email/id doesn't change)
    */
-  function readCachedIdentity() {
+  function readCachedIdentity(strict) {
+    if (strict === undefined) strict = true;
     try {
       const raw = localStorage.getItem(ID_KEY);
       if (!raw) return null;
-      const ts = Number(localStorage.getItem(ID_KEY + "_ts") || 0);
-      // Only apply expiry check if a timestamp was actually written
-      if (ts > 0 && Date.now() - ts > ID_MAX_AGE) return null;
+      if (strict) {
+        const ts = Number(localStorage.getItem(ID_KEY + "_ts") || 0);
+        if (ts > 0 && Date.now() - ts > ID_MAX_AGE) return null;
+      }
       const obj = JSON.parse(raw);
-      if (obj?.id && obj?.email) return obj;
+      if (obj && obj.id && obj.email) return obj;
     } catch {}
     return null;
   }
@@ -105,24 +107,22 @@
   // Single shared identity promise — resolves once per page load
   let _identityPromise = null;
 
-  /**
-   * FIX: Don't permanently cache a null result.
-   * If identity resolves to null, clear the promise so the next
-   * call retries rather than being stuck returning null forever.
-   */
   function getIdentity() {
     if (_identityPromise) return _identityPromise;
     _identityPromise = (async () => {
-      // 1. Try live Squarespace session first
+      // 1. Try live Squarespace session first (also refreshes cache + timestamp)
       const live = await fetchLiveIdentity();
       if (live) return live;
 
-      // 2. Fall back to localStorage cache
-      return readCachedIdentity();
+      // 2. Fall back to cache — lenient mode, ignores expiry.
+      //    Identity data (email, id, name) doesn't change, so stale cache
+      //    is still valid for auth purposes. Live fetch will update it next
+      //    time the user has active Squarespace cookies.
+      return readCachedIdentity(false);
     })();
 
-    // Don't cache null — allow retry on next call
-    _identityPromise.then(v => { if (!v) _identityPromise = null; });
+    // Don't permanently cache null — allow retry on next call
+    _identityPromise.then(function(v) { if (!v) _identityPromise = null; });
 
     return _identityPromise;
   }
@@ -144,7 +144,7 @@
       if (parts.length < 2) return null;
       // Payload is parts[0] — contains { uid, exp, ... }
       const payload = JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));
-      if (!payload?.exp || Date.now() > Number(payload.exp)) return null;
+      if (!payload || !payload.exp || Date.now() > Number(payload.exp)) return null;
       return t;
     } catch { return null; }
   }
@@ -165,7 +165,7 @@
         lastName:          identity.lastName,
       }),
     });
-    const data = await r.json().catch(() => ({}));
+    const data = await r.json().catch(function() { return {}; });
     if (!r.ok || !data.ok) throw new Error(data.error || "session-start failed");
     if (data.token) {
       try { localStorage.setItem(TOKEN_KEY, data.token); } catch {}
@@ -196,8 +196,8 @@
       }
     })();
 
-    // Don't cache null — allow retry on next call
-    _tokenPromise.then(v => { if (!v) _tokenPromise = null; });
+    // Don't permanently cache null — allow retry on next call
+    _tokenPromise.then(function(v) { if (!v) _tokenPromise = null; });
 
     return _tokenPromise;
   }
@@ -209,17 +209,17 @@
 
   window.SCAAuth = {
     /** Async — resolves to identity object or null */
-    getIdentity,
+    getIdentity: getIdentity,
 
     /** Async — resolves to signed token string or null */
-    getToken,
+    getToken: getToken,
 
-    /** Synchronous — returns cached identity instantly (may be null) */
-    readIdentity: readCachedIdentity,
+    /** Synchronous — returns cached identity (respects 7-day expiry) */
+    readIdentity: function() { return readCachedIdentity(true); },
 
     /** Returns auth headers object for fetch calls */
-    authHeaders(token) {
-      return token ? { Authorization: `Bearer ${token}` } : {};
+    authHeaders: function(token) {
+      return token ? { Authorization: "Bearer " + token } : {};
     },
   };
 
