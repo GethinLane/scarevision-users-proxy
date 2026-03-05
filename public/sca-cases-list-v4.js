@@ -466,13 +466,17 @@ backdrop.innerHTML = `
     filterCases();
   }
 
-  function filterCases() {
+function filterCases() {
     const themes = window.jQuery ? $("#themesSelector").val() || [] : [];
+    const isAI = /(^|\.)scarevision\.ai$/i.test(window.location.hostname);
 
     let filtered = (window.allCases || []).filter((r) => {
       const recThemes = r.fields?.["Themes"] || [];
       return themes.every((t) => recThemes.includes(t));
     });
+
+    // On the .ai site, only show cases that have an AI Link
+    if (isAI) filtered = filtered.filter((r) => !!r.fields?.["AI Link"]);
 
     const videoOnly = !!document.getElementById("toggleVideoOnly")?.checked;
     if (videoOnly) filtered = filtered.filter((r) => !!r.fields?.["Video Link"]);
