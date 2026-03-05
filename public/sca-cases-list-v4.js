@@ -1,12 +1,10 @@
-// sca-cases-list-v3.js (rewritten)
-// V3: stale-while-revalidate local cache + background refresh + lazy panel rendering
-//     + scroll-to-top fix + debounce filters + bind resize once + de-duped listeners
-//     + NEW: auth/session popup on user action + Safari-safe globals
+// sca-cases-list-v4.js
+// V4: all V4 features + null-record guards for Edge/cold-cache crash fix
 
 (() => {
   // ✅ Prevent duplicate execution issues on Squarespace soft navigation
-  if (window.__scaCasesListV3Loaded) return;
-  window.__scaCasesListV3Loaded = true;
+  if (window.__scaCasesListV4Loaded) return;
+  window.__scaCasesListV4Loaded = true;
 
   /* =========================================================
      Auth popup (shown only on user-triggered save failures)
@@ -106,7 +104,7 @@
       backdrop.id = "scaAuthModalBackdrop";
       backdrop.hidden = true;
 
-backdrop.innerHTML = `
+      backdrop.innerHTML = `
 <div id="scaAuthModal" role="dialog" aria-modal="true" aria-labelledby="scaAuthTitle">
   <div class="scaAuthHead">
     <h4 class="scaAuthTitle" id="scaAuthTitle"><b>Please log in again</b></h4>
@@ -122,101 +120,79 @@ backdrop.innerHTML = `
     <button class="scaBtn" type="button" id="scaAuthDismissBtn">Not now</button>
   </div>
 
-  <div class="scaAuthNote">
-   
-  </div>
+  <div class="scaAuthNote"></div>
 </div>
 `;
 
-
       document.body.appendChild(backdrop);
 
-      // ✅ Bulletproof close
       const close = () => {
         try { backdrop.hidden = true; } catch {}
-        try { backdrop.style.display = "none"; } catch {} // extra safety
+        try { backdrop.style.display = "none"; } catch {}
         window.__scaAuthRetry = null;
       };
 
-      // Show/hide uses "hidden"; also ensure display resets when shown
       const open = () => {
         try { backdrop.style.display = "flex"; } catch {}
         backdrop.hidden = false;
       };
 
-      // Close on backdrop click
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) close();
       });
 
-      // Close on X / Not now
       backdrop.querySelector(".scaAuthClose")?.addEventListener("click", close);
       backdrop.querySelector("#scaAuthDismissBtn")?.addEventListener("click", close);
 
-      // Log in again action
       backdrop.querySelector("#scaAuthLoginBtn")?.addEventListener("click", () => {
-  // ✅ close our modal so Squarespace overlay isn't behind it
-  close();
+        close();
+        if (!openSquarespaceAccountOverlay()) {
+          alert("Please use the Account / Log in button in the site header.");
+        }
+      });
 
-  if (!openSquarespaceAccountOverlay()) {
-    alert("Please use the Account / Log in button in the site header.");
-  }
-});
-
-
-      // Expose open/close hooks on the backdrop for the show() function
       backdrop.__scaOpen = open;
       backdrop.__scaClose = close;
     }
 
     function isAuthError(err) {
-  const msg = String(err?.message || err || "");
-
-  // Common auth/session strings
-  if (
-    msg.includes("No session") ||
-    msg.includes("Session expired") ||
-    msg.includes("Unauthorized") ||
-    msg.includes("Invalid token") ||
-    msg.includes("Not authenticated") ||
-    msg.includes("cookies missing") ||
-    msg.includes("Profile request failed") // ✅ Chrome case
-  ) return true;
-
-  // Catch HTTP-ish text patterns
-  if (/\b401\b/.test(msg) || /\b403\b/.test(msg)) return true;
-
-  return false;
-}
-
+      const msg = String(err?.message || err || "");
+      if (
+        msg.includes("No session") ||
+        msg.includes("Session expired") ||
+        msg.includes("Unauthorized") ||
+        msg.includes("Invalid token") ||
+        msg.includes("Not authenticated") ||
+        msg.includes("cookies missing") ||
+        msg.includes("Profile request failed")
+      ) return true;
+      if (/\b401\b/.test(msg) || /\b403\b/.test(msg)) return true;
+      return false;
+    }
 
     window.SCAAuthUI = {
-  isAuthError,
-  show(reasonHtml) {
-    // rate-limit so we don’t spam modals on rapid clicks
-    window.__scaAuthModalLast = window.__scaAuthModalLast || 0;
-    if (Date.now() - window.__scaAuthModalLast < 4000) return;
-    window.__scaAuthModalLast = Date.now();
+      isAuthError,
+      show(reasonHtml) {
+        window.__scaAuthModalLast = window.__scaAuthModalLast || 0;
+        if (Date.now() - window.__scaAuthModalLast < 4000) return;
+        window.__scaAuthModalLast = Date.now();
 
-    ensureModal();
+        ensureModal();
 
-    const backdrop = document.getElementById("scaAuthModalBackdrop");
-    const body = document.getElementById("scaAuthBody");
-    if (body && reasonHtml) body.innerHTML = reasonHtml;
+        const backdrop = document.getElementById("scaAuthModalBackdrop");
+        const body = document.getElementById("scaAuthBody");
+        if (body && reasonHtml) body.innerHTML = reasonHtml;
 
-    // Retry removed
-    window.__scaAuthRetry = null;
+        window.__scaAuthRetry = null;
 
-    // ✅ Open modal (supports both basic + "bulletproof" versions)
-    if (backdrop?.__scaOpen) {
-      backdrop.__scaOpen();
-    } else {
-      try { backdrop.style.display = "flex"; } catch {}
-      backdrop.hidden = false;
-    }
-  },
-};
-
+        if (backdrop?.__scaOpen) {
+          backdrop.__scaOpen();
+        } else {
+          try { backdrop.style.display = "flex"; } catch {}
+          backdrop.hidden = false;
+        }
+      },
+    };
   })();
 
   /* =========================================================
@@ -248,7 +224,7 @@ backdrop.innerHTML = `
   });
 
   /* =========================================================
-     Scroll helper (Squarespace-friendly)
+     Scroll helper
      ========================================================= */
 
   function forceScrollTopOnce() {
@@ -299,7 +275,7 @@ backdrop.innerHTML = `
   }
 
   /* =========================================================
-     Completion glue (completed only)
+     Completion glue
      ========================================================= */
 
   window.scaCompletedSet = window.scaCompletedSet || new Set();
@@ -313,7 +289,6 @@ backdrop.innerHTML = `
       });
     };
 
-  // ✅ Safari-safe: store on window so re-execution doesn’t crash
   window.__scaProgressLoaded = window.__scaProgressLoaded || false;
 
   function waitForSCAProgress(maxMs = 5000, intervalMs = 100) {
@@ -345,7 +320,7 @@ backdrop.innerHTML = `
       window.scaCompletedSet = new Set((progress?.completed || []).map(String));
       window.applyCompletedStyles?.();
     } catch {
-      // silent
+      // silent — 401s expected for logged-out users
     }
   }
 
@@ -355,11 +330,19 @@ backdrop.innerHTML = `
 
   const CASES_CACHE_KEY = "airtableData";
 
+  // ✅ Strip null/malformed records at the source
+  function cleanRecords(records) {
+    if (!Array.isArray(records)) return [];
+    return records.filter((r) => r != null && typeof r === "object" && r.fields != null);
+  }
+
   function loadData() {
     const cached = safeJsonParse(localStorage.getItem(CASES_CACHE_KEY));
+    // ✅ Clean cached records in case stale nulls were persisted
+    const cachedRecords = cleanRecords(cached?.data);
 
-    if (cached && Array.isArray(cached.data) && cached.data.length) {
-      processAirtableData(cached.data);
+    if (cachedRecords.length) {
+      processAirtableData(cachedRecords);
     } else {
       const container = document.getElementById("caseList");
       if (container) container.innerHTML = `<div style="padding:14px;color:#6c7485;">Loading cases…</div>`;
@@ -368,7 +351,7 @@ backdrop.innerHTML = `
     refreshCasesInBackground(cached);
   }
 
-function signatureOf(records) {
+  function signatureOf(records) {
     try {
       const n = records.length;
       const first = records[0]?.id || "";
@@ -403,8 +386,9 @@ function signatureOf(records) {
     fetch(url, { method: "GET" })
       .then((r) => r.json())
       .then((data) => {
-        const records = data?.records;
-        if (!Array.isArray(records)) throw new Error("Invalid cases payload");
+        // ✅ Clean records from API before using or caching
+        const records = cleanRecords(data?.records);
+        if (!records.length) throw new Error("No valid records in payload");
 
         const nextSig = signatureOf(records);
         const prevSig = cached?.sig || null;
@@ -470,16 +454,17 @@ function signatureOf(records) {
     filterCases();
   }
 
-function filterCases() {
+  function filterCases() {
     const themes = window.jQuery ? $("#themesSelector").val() || [] : [];
     const isAI = /(^|\.)scarevision\.ai$/i.test(window.location.hostname);
 
+    // ✅ Guard: skip any record missing fields (null-safe)
     let filtered = (window.allCases || []).filter((r) => {
-      const recThemes = r.fields?.["Themes"] || [];
+      if (!r?.fields) return false;
+      const recThemes = r.fields["Themes"] || [];
       return themes.every((t) => recThemes.includes(t));
     });
 
-    // On the .ai site, only show cases that have an AI Link
     if (isAI) filtered = filtered.filter((r) => !!r.fields?.["AI Link"]);
 
     const videoOnly = !!document.getElementById("toggleVideoOnly")?.checked;
@@ -522,8 +507,10 @@ function filterCases() {
 
     const groupField = sortMethod === "Clinical Topic" ? "Clinical Topics" : "Domain";
 
+    // ✅ Guard: skip records without fields in the grouping step
     const grouped = cases.reduce((acc, rec) => {
-      const items = rec.fields?.[groupField] || [];
+      if (!rec?.fields) return acc;
+      const items = rec.fields[groupField] || [];
       const toUse = firstOnly ? [items[0]] : items;
       toUse.forEach((item) => {
         if (!item) return;
@@ -569,7 +556,10 @@ function filterCases() {
     const isAI = /(^|\.)scarevision\.ai$/i.test(window.location.hostname);
     const linkField = isAI ? "AI Link" : (showDiagnosis ? "Link" : "Link-nt");
 
-    records.sort((a, b) => {
+    // ✅ Guard: filter out any null records that somehow reached here
+    const safeRecords = records.filter((r) => r?.fields);
+
+    safeRecords.sort((a, b) => {
       const textA = showDiagnosis ? a.fields?.["Name"] : a.fields?.["Presenting Complaint"];
       const textB = showDiagnosis ? b.fields?.["Name"] : b.fields?.["Presenting Complaint"];
       return String(textA || "").localeCompare(String(textB || ""));
@@ -577,7 +567,7 @@ function filterCases() {
 
     const frag = document.createDocumentFragment();
 
-    for (const record of records) {
+    for (const record of safeRecords) {
       const div = document.createElement("div");
       div.className = "case-entry";
 
@@ -663,8 +653,7 @@ function filterCases() {
   window.addEventListener("pageshow", scaRefreshProgress);
 
   /* =========================================================
-     Toggle completion by clicking the checkbox gutter
-     + NEW: auth popup on session/auth failure
+     Toggle completion + auth popup on session failure
      ========================================================= */
 
   document.addEventListener("click", async (e) => {
@@ -684,7 +673,6 @@ function filterCases() {
 
     const isCompleted = entry.classList.contains("is-completed");
 
-    // optimistic UI update
     entry.classList.toggle("is-completed", !isCompleted);
     window.scaCompletedSet?.[isCompleted ? "delete" : "add"](String(caseId));
 
@@ -695,13 +683,8 @@ function filterCases() {
 
     const attemptSave = async () => {
       await window.SCAProgress.setComplete(caseId, !isCompleted);
-      // if saved, notify other tabs/pages
-      try {
-        localStorage.setItem("sca-progress-updated", String(Date.now()));
-      } catch {}
-      try {
-        scaProgressChannel?.postMessage?.({ type: "progress-updated" });
-      } catch {}
+      try { localStorage.setItem("sca-progress-updated", String(Date.now())); } catch {}
+      try { scaProgressChannel?.postMessage?.({ type: "progress-updated" }); } catch {}
     };
 
     try {
@@ -712,16 +695,12 @@ function filterCases() {
         await attemptSave();
       } catch (err2) {
         rollback();
-
-        // ✅ show login modal only for auth/session-related failures
         const eMsg = err2 || err;
         if (window.SCAAuthUI?.isAuthError?.(eMsg)) {
           window.SCAAuthUI.show(
-  "To save your progress, please <b>log in again</b> to confirm your account."
-);
-
+            "To save your progress, please <b>log in again</b> to confirm your account."
+          );
         }
-
         console.warn("Failed to save completion after retry:", err2 || err);
       }
     }
