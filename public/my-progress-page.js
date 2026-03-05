@@ -59,7 +59,7 @@
       const t = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || "";
       if (!t) return null;
       // Peek at expiry from the base64url payload — no full verify needed client-side
-      const payload = JSON.parse(atob(t.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")));
+      const payload = JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
       if (!payload?.exp || Date.now() > Number(payload.exp)) return null;
       return t;
     } catch { return null; }
