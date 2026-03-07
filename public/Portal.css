@@ -805,28 +805,15 @@
   );
 }
 
-/* Icon — blue tint instead of purple */
-.sca-portal .ai-patients-section .card-icon {
-  background: rgba(59, 130, 246, 0.18);
-  color: #60a5fa;
-}
-
-/* Button — solid blue */
 .sca-portal .ai-patients-section .btn-card-primary {
-  background: rgba(37, 99, 235, 0.85);
-  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.30);
+  background: rgba(255, 255, 255, 0.92);
+  color: #253551;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.20);
 }
 
 .sca-portal .ai-patients-section .btn-card-primary:hover {
-  background: rgba(37, 99, 235, 1);
-  box-shadow: 0 12px 32px rgba(37, 99, 235, 0.45);
-}
-
-/* Hover border — blue instead of purple */
-.sca-portal .ai-patients-section .card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(59, 130, 246, 0.40);
-  box-shadow:
-    0 20px 56px rgba(37, 99, 235, 0.35),
-    0 8px 24px rgba(15, 23, 42, 0.28);
+  background: #ffffff;
+  color: #253551;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+  transform: translateY(-1px);
 }
