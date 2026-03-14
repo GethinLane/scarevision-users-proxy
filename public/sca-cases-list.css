@@ -285,8 +285,7 @@ body {
 /* Uncompleted: empty square checkbox */
 .case-entry::before {
   content: "\f0c8";                 /* fa-square */
-  font-family: "Font Awesome 6 Free";
-  font-weight: 400;
+  font: var(--fa-font-regular);
   font-size: 18px;
 
   /* ✅ key: bigger hitbox but stays in the same place */
@@ -375,8 +374,7 @@ body {
 /* Completed: outlined green checkbox */
 .case-entry.is-completed::before {
   content: "\f14a";                 /* fa-square-check */
-  font-family: "Font Awesome 6 Free";
-  font-weight: 400;
+  font: var(--fa-font-regular);
   font-size: 18px;
 
   width: 28px;
