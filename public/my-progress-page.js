@@ -1,14 +1,20 @@
 /**
- * SCA Dashboard — Unified Script v3
+ * SCA Dashboard — Unified Script v4
  * ====================================
- * Self-contained auth — no dependency on sca-progress.js.
+ * ✅ CHANGE: All auth delegated to sca-auth.js (SCAAuth).
+ *    Removes the self-contained identity/token logic that read cache
+ *    BEFORE live fetch, which could serve a stale identity from a
+ *    previous user.
  *
- * Auth order (everywhere, every widget):
- *   1. Try live Squarespace session (crumb cookies) → freshest identity
- *   2. Fall back to sca_member_identity in localStorage
+ * Load order:
+ *   <script defer src="sca-auth.js"></script>
+ *   <script defer src="my-progress-page.js"></script>
+ *
+ * Auth order (handled by SCAAuth):
+ *   1. Try live Squarespace session (crumb cookies) — freshest identity
+ *   2. Fall back to localStorage cache (lenient, for stable fields only)
  *   3. Use that identity to call session-start-v2 → get signed token
- *   4. Use token for all proxy calls
- *   5. Cache aggressively so next visit skips steps 1-3
+ *   4. Token cached in sca_session_token — skips steps 1-3 next visit
  *
  * Covers:
  *   - Welcome name           (#dashWelcomeName)
@@ -22,156 +28,47 @@
   'use strict';
 
   const PROXY_BASE = "https://scarevision-users-proxy.vercel.app";
-  const TOKEN_KEY  = "sca_session_token";
-  const ID_KEY     = "sca_member_identity";
 
 
   /* ============================================================
-     1. IDENTITY  — live Squarespace session first, cache second
+     1. WAIT FOR SCAAuth
   ============================================================ */
-
-  /** Read cookies into a map */
-  function cookieMap() {
-    return document.cookie.split(";").reduce((acc, c) => {
-      const i = c.indexOf("=");
-      if (i < 0) return acc;
-      acc[c.slice(0, i).trim()] = decodeURIComponent(c.slice(i + 1));
-      return acc;
-    }, {});
-  }
-
-  /** Try to fetch identity live from Squarespace. Returns identity object or null. */
-  async function fetchLiveIdentity() {
-    try {
-      const cookies = cookieMap();
-      const crumb         = cookies["crumb"];
-      const siteUserCrumb = cookies["siteUserCrumb"];
-      if (!crumb || !siteUserCrumb) return null;
-
-      const r = await fetch("/api/site-users/account/profile", {
-        headers: {
-          "x-csrf-token":          crumb,
-          "x-siteuser-xsrf-token": siteUserCrumb,
-        },
-      });
-      if (!r.ok) return null;
-
-      const p = await r.json().catch(() => null);
-      if (!p?.email) return null;
-
-      const identity = {
-        id:        p.id               || null,
-        email:     p.email            || null,
-        firstName: p?.name?.firstName || null,
-        lastName:  p?.name?.lastName  || null,
-      };
-
-      // Update the cache so the next page load is instant
-      try { localStorage.setItem(ID_KEY, JSON.stringify(identity)); } catch {}
-      return identity;
-
-    } catch { return null; }
-  }
-
-  /** Read identity from localStorage cache. */
-  function readCachedIdentity() {
-    try {
-      const obj = JSON.parse(localStorage.getItem(ID_KEY) || "null");
-      if (obj?.id && obj?.email) return obj;
-    } catch {}
-    return null;
-  }
-
-  // One shared promise for identity — resolved once per page load
-  let _identityPromise = null;
-  function getIdentity() {
-    if (_identityPromise) return _identityPromise;
-    _identityPromise = (async () => {
-      // 1. Instant from cache (so widgets can read it synchronously too)
-      const cached = readCachedIdentity();
-
-      // 2. Live Squarespace session (best source)
-      const live = await fetchLiveIdentity();
-      if (live) return live;
-
-      // 3. Fall back to cache
-      if (cached) return cached;
-
-      return null; // not logged in at all
-    })();
-    return _identityPromise;
-  }
-
-
-  /* ============================================================
-     2. SESSION TOKEN  — start session with proxy using identity
-  ============================================================ */
-
-  /** Read the stored token; return it if still valid, else null. */
-  function readToken() {
-    try {
-      const t = localStorage.getItem(TOKEN_KEY) || "";
-      if (!t) return null;
-      const parts = t.split(".");
-      if (parts.length < 2) return null;
-      // Token format: base64url(payload).hmac  — payload is parts[0]
-      const payload = JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));
-      if (!payload?.exp || Date.now() > Number(payload.exp)) return null;
-      return t;
-    } catch { return null; }
-  }
-
-  function authHeaders(token) {
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
-  /** Start a server session for this identity → returns a signed token. */
-  async function startSession(identity) {
-    const r = await fetch(`${PROXY_BASE}/api/session-start-v2`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        squarespaceUserId: identity.id,
-        email:             identity.email,
-        firstName:         identity.firstName,
-        lastName:          identity.lastName,
-      }),
+  function waitForAuth(maxMs = 5000) {
+    return new Promise(resolve => {
+      if (window.SCAAuth) return resolve(true);
+      const start = Date.now();
+      const t = setInterval(() => {
+        if (window.SCAAuth) { clearInterval(t); resolve(true); return; }
+        if (Date.now() - start > maxMs) { clearInterval(t); resolve(false); }
+      }, 50);
     });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data.ok) throw new Error(data.error || "session-start failed");
-    if (data.token) {
-      try { localStorage.setItem(TOKEN_KEY, data.token); } catch {}
-      return data.token;
-    }
-    return null;
   }
 
-  // One shared promise for the token — resolved once per page load
-  let _tokenPromise = null;
-  function getToken() {
-    if (_tokenPromise) return _tokenPromise;
-    _tokenPromise = (async () => {
-      // Fast path — valid cached token, skip network entirely
-      const cached = readToken();
-      if (cached) return cached;
+  /** Convenience — waits for SCAAuth then calls getIdentity */
+  async function getIdentity() {
+    await waitForAuth();
+    return window.SCAAuth.getIdentity();
+  }
 
-      // Need to authenticate
-      const identity = await getIdentity();
-      if (!identity) return null; // no identity → cannot get a token
+  /** Convenience — waits for SCAAuth then calls getToken */
+  async function getToken() {
+    await waitForAuth();
+    return window.SCAAuth.getToken();
+  }
 
-      try {
-        return await startSession(identity);
-      } catch {
-        return null;
-      }
-    })();
-    return _tokenPromise;
+  /** Synchronous cached identity — for instant UI like the welcome name */
+  function readCachedIdentity() {
+    return window.SCAAuth?.readIdentity() || null;
+  }
+
+  /** Auth headers helper */
+  function authHeaders(token) {
+    return window.SCAAuth?.authHeaders(token) || (token ? { Authorization: `Bearer ${token}` } : {});
   }
 
 
   /* ============================================================
-     3. PROGRESS  (completed + flagged) — shared across widgets
+     2. PROGRESS  (completed + flagged) — shared across widgets
   ============================================================ */
   const PROGRESS_CACHE_KEY = "sca_cc_completed_ids_v1";
   const PROGRESS_MAX_AGE   = 24 * 60 * 60 * 1000;
@@ -216,7 +113,7 @@
 
 
   /* ============================================================
-     4. CASE MAP  (Airtable, public — no auth, start immediately)
+     3. CASE MAP  (Airtable, public — no auth, start immediately)
   ============================================================ */
   async function loadCaseMap() {
     try {
@@ -258,7 +155,7 @@
 
 
   /* ============================================================
-     5. SHARED UTILITIES
+     4. SHARED UTILITIES
   ============================================================ */
   function onReady(fn) {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn);
@@ -289,7 +186,7 @@
 
 
   /* ============================================================
-     6. WELCOME NAME  (#dashWelcomeName)
+     5. WELCOME NAME  (#dashWelcomeName)
   ============================================================ */
   function initWelcomeName() {
     const el = document.getElementById("dashWelcomeName");
@@ -302,7 +199,7 @@
       el.textContent = name ? `, ${name}` : "";
     }
 
-    // Step 1: instant from cache
+    // Step 1: instant from cache (via SCAAuth.readIdentity — respects 7-day expiry)
     const cached = readCachedIdentity();
     if (cached) setName(cached);
 
@@ -312,7 +209,7 @@
 
 
   /* ============================================================
-     7. CASE COMPLETION CARD  (#scaCaseCompletionCard)
+     6. CASE COMPLETION CARD  (#scaCaseCompletionCard)
   ============================================================ */
   function initCaseCompletionCard() {
     const countEl = document.getElementById("scaCcCompletedCount");
@@ -364,7 +261,7 @@
 
 
   /* ============================================================
-     8. PROGRESS BREAKDOWN  (#scaBreakdownCard)
+     7. PROGRESS BREAKDOWN  (#scaBreakdownCard)
   ============================================================ */
   function initProgressBreakdown() {
     const barsEl = document.getElementById("scaBreakdownBars");
@@ -640,7 +537,7 @@
 
 
   /* ============================================================
-     9. EXAM DATE HERO  (#scaHeroExamCard)
+     8. EXAM DATE HERO  (#scaHeroExamCard)
   ============================================================ */
   function initExamDateHero() {
     if (window.__scaHeroExamInit) return;
@@ -857,7 +754,12 @@
      BOOT
   ============================================================ */
   loadCaseMap(); // public, no auth, start immediately
-  getIdentity(); // kick off identity resolution early
+
+  // ✅ Kick off SCAAuth identity + token resolution early
+  waitForAuth().then(() => {
+    window.SCAAuth.getIdentity();
+    window.SCAAuth.getToken();
+  });
 
   onReady(() => {
     initWelcomeName();
