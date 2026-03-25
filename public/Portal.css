@@ -192,7 +192,7 @@
 .sca-portal .card{
   background: var(--card-bg);
   border-radius: var(--radius-lg);
-  padding: 10px 24px 24px;
+  padding: 20px 24px 24px;
   border: 1px solid rgba(148,163,184,0.18);
   box-shadow: 0 12px 30px rgba(15,23,42,0.06);
   display: flex;
