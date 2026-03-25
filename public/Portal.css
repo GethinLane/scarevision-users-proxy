@@ -18,7 +18,7 @@
   background: radial-gradient(circle at top left, rgba(255,255,255,0.55), transparent 55%), #F5F6FA;
 
   /* Base readable type */
-  font-size: clamp(17px, 1.15vw, 19px);
+  font-size: clamp(15px, 1vw, 17px);
   line-height: 1.75;
   color: var(--text);
 }
