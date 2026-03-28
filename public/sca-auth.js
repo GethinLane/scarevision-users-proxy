@@ -13,7 +13,12 @@
  *   1. Live Squarespace session (crumb cookies) — freshest, updates cache
  *   2. localStorage sca_member_identity cache   — fallback, used regardless of age
  *   3. session-start-v2 proxy call              — writes signed token
- *   4. Token cached in sca_session_token        — skips steps 1-3 next visit
+ *   4. Token cached in sca_session_token        — skips step 3 next visit
+ *      BUT only if token UID matches current identity
+ *
+ * ✅ FIX (2026-03-28): getToken() now always resolves identity FIRST, then
+ *    validates the cached token's UID against the identity. Prevents cross-user
+ *    token reuse when a different person logs in on the same device/browser.
  */
 
 (() => {
@@ -133,18 +138,54 @@
   ============================================================ */
 
   /**
-   * Read the stored token; return it if structurally valid and not expired.
-   * Token format: base64url(payload).hmac  (two parts, not a JWT).
+   * Decode the token's payload without verifying the signature.
+   * Returns the parsed payload object or null if malformed.
    */
-  function readToken() {
+  function decodeTokenPayload(token) {
+    try {
+      if (!token) return null;
+      const parts = token.split(".");
+      if (parts.length < 2) return null;
+      return JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Read the stored token; return it ONLY if:
+   *   1. structurally valid
+   *   2. not expired
+   *   3. UID matches the provided expectedUid (if given)
+   *
+   * If the UID doesn't match, the stale token is removed from storage
+   * so it can never be accidentally reused.
+   */
+  function readToken(expectedUid) {
     try {
       const t = localStorage.getItem(TOKEN_KEY) || "";
       if (!t) return null;
-      const parts = t.split(".");
-      if (parts.length < 2) return null;
-      // Payload is parts[0] — contains { uid, exp, ... }
-      const payload = JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));
-      if (!payload || !payload.exp || Date.now() > Number(payload.exp)) return null;
+
+      const payload = decodeTokenPayload(t);
+      if (!payload || !payload.exp || Date.now() > Number(payload.exp)) {
+        // Expired or malformed — clean up
+        try { localStorage.removeItem(TOKEN_KEY); } catch {}
+        return null;
+      }
+
+      // ✅ FIX: if we know who the current user is, reject tokens from other users
+      if (expectedUid && String(payload.uid) !== String(expectedUid)) {
+        console.warn(
+          "[SCAAuth] Token UID mismatch — cached token belongs to",
+          String(payload.uid).slice(0, 8) + "…",
+          "but current user is",
+          String(expectedUid).slice(0, 8) + "…",
+          "— invalidating stale token"
+        );
+        try { localStorage.removeItem(TOKEN_KEY); } catch {}
+        return null;
+      }
+
       return t;
     } catch { return null; }
   }
@@ -180,14 +221,23 @@
   function getToken() {
     if (_tokenPromise) return _tokenPromise;
     _tokenPromise = (async () => {
-      // Fast path — valid cached token, no network needed
-      const cached = readToken();
-      if (cached) return cached;
 
-      // Need identity to start a session
+      // ✅ FIX: Always resolve identity FIRST so we can validate the token against it.
+      //
+      // Priority:
+      //   1. Live Squarespace identity (crumb cookies) — highest trust
+      //   2. Cached identity (localStorage)            — fallback
+      //   3. Neither available                         — no auth possible
       const identity = await getIdentity();
       if (!identity) return null;
 
+      const expectedUid = identity.id || null;
+
+      // Now check for a cached token — but only accept it if the UID matches
+      const cached = readToken(expectedUid);
+      if (cached) return cached;
+
+      // No valid cached token (or it belonged to a different user) — mint fresh
       try {
         return await startSession(identity);
       } catch (e) {
@@ -228,6 +278,6 @@
   getIdentity();
   getToken();
 
-  console.log("[SCAAuth] loaded");
+  console.log("[SCAAuth] loaded (with cross-user token guard)");
 
 })();
