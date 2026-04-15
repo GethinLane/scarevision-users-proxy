@@ -1,3 +1,8 @@
+/* ═══════ SCA Toolbar CSS ═══════
+   Wrap in <style>...</style> tags and paste into
+   Settings → Advanced → Code Injection → Header
+   ═══════════════════════════════════════════════ */
+
 #scaToolbar {
   position: fixed;
   bottom: 18px;
@@ -23,6 +28,7 @@
   -webkit-font-smoothing: antialiased;
   transition: font-weight 0.2s ease, color 0.2s ease;
 }
+
 .sca-toolbar__clock--active {
   font-weight: 400;
   color: #fff;
@@ -54,6 +60,7 @@
   background: rgba(74, 158, 255, 0.2);
   color: #6ab0ff;
 }
+
 .sca-toolbar__btn--start:hover {
   background: rgba(74, 158, 255, 0.3);
 }
@@ -62,6 +69,7 @@
   background: rgba(255, 255, 255, 0.07);
   color: rgba(255, 255, 255, 0.35);
 }
+
 .sca-toolbar__btn--reset:hover {
   background: rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.5);
@@ -83,10 +91,12 @@
   cursor: pointer;
   transition: background 0.15s ease, transform 0.12s ease;
 }
+
 .sca-toolbar__ai-btn:hover {
   background: #6d3bef;
   transform: translateY(-1px);
 }
+
 .sca-toolbar__ai-btn i {
   font-size: 16px;
 }
