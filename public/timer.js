@@ -1,4 +1,17 @@
+// ═══════ SCA Toolbar JS ═══════
+// Wrap in <script>...</script> tags and paste into
+// the same Squarespace Code Block, AFTER the HTML.
+// ═══════════════════════════════════════════════════
+
 (function() {
+  // Move toolbar to body so it escapes section stacking context
+  var toolbar = document.getElementById("scaToolbar");
+  if (toolbar) {
+    document.body.appendChild(toolbar);
+    toolbar.style.display = "";
+  }
+
+  // Timer config
   var TOTAL = 12 * 60 * 1000;
   var startTime = 0;
   var pausedTime = 0;
