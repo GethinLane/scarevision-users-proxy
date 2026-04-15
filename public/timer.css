@@ -1,0 +1,114 @@
+#scaToolbar {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 8px 8px 24px;
+  background: #1c2b4a;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.28);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.sca-toolbar__clock {
+  font-family: 'Helvetica Neue', Helvetica, sans-serif;
+  font-size: 36px;
+  font-weight: 200;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 2px;
+  -webkit-font-smoothing: antialiased;
+  transition: font-weight 0.2s ease, color 0.2s ease;
+}
+.sca-toolbar__clock--active {
+  font-weight: 400;
+  color: #fff;
+}
+
+.sca-toolbar__controls {
+  display: flex;
+  gap: 4px;
+}
+
+.sca-toolbar__btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sca-toolbar__btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.sca-toolbar__btn--start {
+  background: rgba(74, 158, 255, 0.2);
+  color: #6ab0ff;
+}
+.sca-toolbar__btn--start:hover {
+  background: rgba(74, 158, 255, 0.3);
+}
+
+.sca-toolbar__btn--reset {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.35);
+}
+.sca-toolbar__btn--reset:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sca-toolbar__ai-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-radius: 14px;
+  background: #7c4dff;
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.sca-toolbar__ai-btn:hover {
+  background: #6d3bef;
+  transform: translateY(-1px);
+}
+.sca-toolbar__ai-btn i {
+  font-size: 16px;
+}
+
+@media (max-width: 640px) {
+  #scaToolbar {
+    bottom: 14px;
+    padding: 6px 6px 6px 18px;
+    gap: 12px;
+    border-radius: 16px;
+  }
+  .sca-toolbar__clock {
+    font-size: 28px;
+    letter-spacing: 1px;
+  }
+  .sca-toolbar__ai-btn {
+    padding: 12px 16px;
+    font-size: 16px;
+    border-radius: 12px;
+  }
+}
+
+body {
+  padding-bottom: 80px !important;
+}
