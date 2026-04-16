@@ -133,7 +133,7 @@
             '<div class="sca-ai-feat-label">AI Role-Play</div>' +
           '</div>' +
           '<div class="sca-ai-feat sca-ai-feat--green">' +
-            '<div class="sca-ai-feat-icon"><i class="fa-solid fa-pen-ruler"></i></div>' +
+            '<div class="sca-ai-feat-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>' +
             '<div class="sca-ai-feat-label">AI Marking</div>' +
           '</div>' +
           '<div class="sca-ai-feat sca-ai-feat--blue">' +
