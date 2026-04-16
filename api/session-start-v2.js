@@ -146,11 +146,12 @@ export default async function handler(req, res) {
     );
 
     // ✅ ALSO return token for Bearer auth fallback
-    return send(req, res, 200, {
+return send(req, res, 200, {
   ok: true,
   token: sessionToken,
   exp,
-  userRecordId: recordId, // ✅ NEW (safe)
+  userRecordId: recordId,
+  hasSeenAiIntro: !!rec?.fields?.HasSeenAiIntro,
 });
 
   } catch (err) {
