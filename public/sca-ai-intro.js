@@ -133,10 +133,11 @@
         '</div>' +
 
         '<p class="sca-ai-explain">' +
-          'You\u2019re just one quick step away! Our AI tools live on a ' +
-          'separate site, so you\u2019ll need a ' +
-          '<strong>free account</strong> to get started. ' +
-          'It only takes 30 seconds \u2014 and you can sign up with Google in one click!' +
+          'You\u2019re just one quick step away! Our AI tools run on a ' +
+          'separate site to track your credits and progress, so you\u2019ll need to ' +
+          '<strong>create a free account</strong> there. ' +
+          'It doesn\u2019t have to be the same email or password \u2014 ' +
+          'and you can sign up with Google in one click!' +
         '</p>' +
 
         '<div class="sca-ai-btns">' +
