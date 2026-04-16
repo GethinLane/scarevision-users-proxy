@@ -23,8 +23,9 @@
   const TOKEN_KEY = "sca_session_token";
   const PROXY_BASE = "https://scarevision-users-proxy.vercel.app";
   const SIGNUP_URL = "https://scarevision.ai?msopen=/member/sign_up/pft2ocszx1";
-  const LEARN_MORE_URL = "/ai-practice"; // change to your landing page path
+  const LEARN_MORE_URL = "https://www.scarevision.ai/home";
   const AI_DOMAIN = "scarevision.ai";
+  const AI_EXCLUDED_PATHS = ["/home"]; // paths on scarevision.ai that bypass the popup
 
   // ── State ──
   let popupEl = null;
@@ -84,7 +85,21 @@
     if (!el) return false;
     var href = el.getAttribute("href") || "";
     // Matches any link containing scarevision.ai
-    if (href.indexOf(AI_DOMAIN) !== -1) return true;
+    if (href.indexOf(AI_DOMAIN) !== -1) {
+      // Check if it's an excluded path (e.g. /home info page)
+      for (var i = 0; i < AI_EXCLUDED_PATHS.length; i++) {
+        try {
+          var url = new URL(href, window.location.origin);
+          if (url.pathname === AI_EXCLUDED_PATHS[i] || url.pathname === AI_EXCLUDED_PATHS[i] + "/") {
+            return false;
+          }
+        } catch {
+          // If URL parsing fails, check with simple string match
+          if (href.indexOf(AI_DOMAIN + AI_EXCLUDED_PATHS[i]) !== -1) return false;
+        }
+      }
+      return true;
+    }
     // Also catch the random case class (generates scarevision.ai URLs)
     if (el.classList.contains("js-random-case")) return true;
     return false;
