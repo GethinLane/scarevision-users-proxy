@@ -130,7 +130,7 @@
         '<div class="sca-ai-divider"></div>' +
 
         '<p class="sca-ai-explain">' +
-          'Our AI tools run on a separate platform to track your credits, so you\'ll need to ' +
+          'Our AI tools run on a separate platform to track your AI progress and credits, so you\'ll need to ' +
           '<strong>create a quick, free account</strong> on our AI site. ' +
           'Takes about 30 seconds \u2014 or one click with Google.' +
         '</p>' +
