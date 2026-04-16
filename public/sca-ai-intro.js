@@ -10,26 +10,23 @@
  * Load order (in Squarespace header or code block):
  *   <link rel="stylesheet" href="https://scarevision-users-proxy.vercel.app/sca-ai-intro.css">
  *   <script defer src="https://scarevision-users-proxy.vercel.app/sca-ai-intro.js"></script>
- *
- * Optional (improves Airtable backup — add sca-auth.js to portal page):
- *   <script defer src="https://scarevision-users-proxy.vercel.app/sca-auth.js"></script>
  */
 
 (function () {
   "use strict";
 
   // ── Config ──
-  const LS_KEY = "sca_seen_ai_intro";
-  const TOKEN_KEY = "sca_session_token";
-  const PROXY_BASE = "https://scarevision-users-proxy.vercel.app";
-  const SIGNUP_URL = "https://scarevision.ai?msopen=/member/sign_up/pft2ocszx1";
-  const LEARN_MORE_URL = "https://www.scarevision.ai/home";
-  const AI_DOMAIN = "scarevision.ai";
-  const AI_EXCLUDED_PATHS = ["/home"]; // paths on scarevision.ai that bypass the popup
+  var LS_KEY = "sca_seen_ai_intro";
+  var TOKEN_KEY = "sca_session_token";
+  var PROXY_BASE = "https://scarevision-users-proxy.vercel.app";
+  var SIGNUP_URL = "https://scarevision.ai?msopen=/member/sign_up/pft2ocszx1";
+  var LEARN_MORE_URL = "https://www.scarevision.ai/home";
+  var AI_DOMAIN = "scarevision.ai";
+  var AI_EXCLUDED_PATHS = ["/home"];
 
   // ── State ──
-  let popupEl = null;
-  let pendingUrl = null; // the AI URL the user originally clicked
+  var popupEl = null;
+  var pendingUrl = null;
 
   // ── localStorage helpers ──
   function hasSeen() {
@@ -46,13 +43,11 @@
   }
 
   function backgroundCheckAirtable() {
-    // If localStorage already has the flag, skip entirely
     if (hasSeen()) return;
 
     var token = getToken();
-    if (!token) return; // no auth available, that's fine
+    if (!token) return;
 
-    // Silent background check — seeds localStorage if Airtable says seen
     fetch(PROXY_BASE + "/api/ai-intro-flag", {
       method: "GET",
       headers: { Authorization: "Bearer " + token },
@@ -63,12 +58,12 @@
           markSeen();
         }
       })
-      .catch(function () {}); // silent
+      .catch(function () {});
   }
 
   function fireAndForgetWriteFlag() {
     var token = getToken();
-    if (!token) return; // no auth, skip silently
+    if (!token) return;
 
     fetch(PROXY_BASE + "/api/ai-intro-flag", {
       method: "POST",
@@ -77,16 +72,14 @@
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify({ hasSeenAiIntro: true }),
-    }).catch(function () {}); // silent
+    }).catch(function () {});
   }
 
   // ── Is this an AI link? ──
   function isAiLink(el) {
     if (!el) return false;
     var href = el.getAttribute("href") || "";
-    // Matches any link containing scarevision.ai
     if (href.indexOf(AI_DOMAIN) !== -1) {
-      // Check if it's an excluded path (e.g. /home info page)
       for (var i = 0; i < AI_EXCLUDED_PATHS.length; i++) {
         try {
           var url = new URL(href, window.location.origin);
@@ -94,13 +87,11 @@
             return false;
           }
         } catch {
-          // If URL parsing fails, check with simple string match
           if (href.indexOf(AI_DOMAIN + AI_EXCLUDED_PATHS[i]) !== -1) return false;
         }
       }
       return true;
     }
-    // Also catch the random case class (generates scarevision.ai URLs)
     if (el.classList.contains("js-random-case")) return true;
     return false;
   }
@@ -108,7 +99,6 @@
   function getAiUrl(el) {
     var href = el.getAttribute("href") || "";
     if (href.indexOf(AI_DOMAIN) !== -1) return href;
-    // js-random-case generates the URL dynamically — we'll redirect to the AI site
     if (el.classList.contains("js-random-case")) return "https://www." + AI_DOMAIN + "/members-portal";
     return "https://www." + AI_DOMAIN;
   }
@@ -125,7 +115,7 @@
           '<i class="fa-solid fa-brain-circuit"></i>' +
         '</div>' +
 
-        '<h2 class="sca-ai-title">You\'re about to unlock AI practice</h2>' +
+        '<h2 class="sca-ai-title">Supercharge your revision with AI</h2>' +
 
         '<div class="sca-ai-features">' +
           '<div class="sca-ai-feat sca-ai-feat--purple">' +
@@ -143,25 +133,25 @@
         '</div>' +
 
         '<p class="sca-ai-explain">' +
-          'Our AI tools run on a separate platform to track your credits, so you\'ll need to ' +
-          '<strong>create a quick, free account</strong> on our AI site. ' +
-          'Takes about 30 seconds \u2014 or one click with Google.' +
+          'You\u2019re just one quick step away! Our AI tools live on a ' +
+          'separate site, so you\u2019ll need a ' +
+          '<strong>free account</strong> to get started. ' +
+          'It only takes 30 seconds \u2014 and you can sign up with Google in one click!' +
         '</p>' +
 
         '<div class="sca-ai-btns">' +
           '<button class="sca-ai-btn-go" data-sca-ai="signup" type="button">' +
-            'Let\u2019s go \u2014 set up my free account ' +
+            'Let\u2019s do it \u2014 grab my free credits! ' +
             '<i class="fa-solid fa-arrow-right"></i>' +
           '</button>' +
           '<button class="sca-ai-btn-existing" data-sca-ai="existing" type="button">' +
-            'I already have an AI account \u2014 take me there' +
+            'I\u2019m already set up \u2014 take me there' +
           '</button>' +
-          '<button class="sca-ai-btn-learn" data-sca-ai="learn" type="button">' +
-            'Learn more about AI practice' +
-          '</button>' +
-          '<button class="sca-ai-btn-later" data-sca-ai="later" type="button">' +
-            'Maybe later' +
-          '</button>' +
+        '</div>' +
+
+        '<div class="sca-ai-links">' +
+          '<button class="sca-ai-link" data-sca-ai="learn" type="button">Tell me more</button>' +
+          '<button class="sca-ai-link" data-sca-ai="later" type="button">Maybe later</button>' +
         '</div>' +
       '</div>';
 
@@ -170,21 +160,18 @@
 
   // ── Show / hide ──
   function showPopup(originalUrl) {
-    if (popupEl) return; // already showing
+    if (popupEl) return;
 
     pendingUrl = originalUrl;
     popupEl = buildPopup();
     document.body.appendChild(popupEl);
 
-    // Prevent body scroll
     document.body.style.overflow = "hidden";
 
-    // Click backdrop to dismiss
     popupEl.addEventListener("click", function (e) {
       if (e.target === popupEl) dismiss();
     });
 
-    // Button handlers
     popupEl.addEventListener("click", function (e) {
       var btn = e.target.closest("[data-sca-ai]");
       if (!btn) return;
@@ -204,12 +191,10 @@
       }
 
       if (action === "learn") {
-        // Open in new tab, keep popup open
         window.open(LEARN_MORE_URL, "_blank");
       }
 
       if (action === "later" || action === "close") {
-        // Do NOT set flag — popup will show again next time
         dismiss();
       }
     });
@@ -225,35 +210,27 @@
 
   // ── Intercept AI link clicks ──
   function handleClick(e) {
-    // Already seen? Let everything through normally
     if (hasSeen()) return;
 
     var link = e.target.closest("a");
     if (!link) return;
     if (!isAiLink(link)) return;
 
-    // Prevent the navigation
     e.preventDefault();
     e.stopPropagation();
 
-    // Show the popup with the original destination stored
     showPopup(getAiUrl(link));
   }
 
-  // ── Also intercept the toolbar AI button ──
+  // ── Intercept toolbar AI button ──
   function interceptToolbarButton() {
     var aiBtn = document.getElementById("scaAiBtn");
     if (!aiBtn) return;
 
-    // Remove the inline onclick
     aiBtn.removeAttribute("onclick");
 
     aiBtn.addEventListener("click", function (e) {
-      if (hasSeen()) {
-        // When they've seen the popup, let it do whatever it normally does
-        // For now it's "Coming Soon" — when you wire it up, change this
-        return;
-      }
+      if (hasSeen()) return;
       e.preventDefault();
       e.stopPropagation();
       showPopup("https://www." + AI_DOMAIN + "/members-portal");
@@ -262,13 +239,9 @@
 
   // ── Init ──
   function init() {
-    // Background Airtable check (non-blocking, seeds localStorage if flag exists)
     backgroundCheckAirtable();
-
-    // Intercept all AI link clicks via delegation
     document.addEventListener("click", handleClick, true);
 
-    // Intercept toolbar button when DOM is ready
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", interceptToolbarButton);
     } else {
