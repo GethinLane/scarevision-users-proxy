@@ -81,20 +81,32 @@
   gap: 8px;
   padding: 14px 22px;
   border-radius: 14px;
-  background: rgba(74, 222, 128, 0.2);
-  color: #dff0d5;
+  background: #2eb872;
+  color: #ffffff;
   font-family: inherit;
   font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
   border: none;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.12s ease;
+  animation: sca-ai-pulse 2.2s ease-in-out infinite;
+  transition: transform 0.12s ease, background 0.15s ease;
 }
 
 .sca-toolbar__ai-btn:hover {
-  background: rgba(74, 222, 128, 0.3);
+  background: #26a063;
   transform: translateY(-1px);
+}
+
+@keyframes sca-ai-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(46, 184, 114, 0.55),
+                0 4px 12px rgba(46, 184, 114, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(46, 184, 114, 0),
+                0 6px 18px rgba(46, 184, 114, 0.45);
+  }
 }
 
 .sca-toolbar__ai-btn i {
