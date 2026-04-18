@@ -81,19 +81,20 @@
   gap: 8px;
   padding: 14px 22px;
   border-radius: 14px;
-  background: #7c4dff;
-  color: #fff;
+  background: rgba(27, 107, 74, 0.08);
+  color: #1b6b4a;
   font-family: inherit;
   font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
-  border: none;
+  border: 0.5px solid rgba(27, 107, 74, 0.2);
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.12s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
 .sca-toolbar__ai-btn:hover {
-  background: #6d3bef;
+  background: rgba(27, 107, 74, 0.14);
+  border-color: rgba(27, 107, 74, 0.3);
   transform: translateY(-1px);
 }
 
