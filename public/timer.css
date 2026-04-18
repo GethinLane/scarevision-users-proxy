@@ -89,7 +89,7 @@
   white-space: nowrap;
   border: none;
   cursor: pointer;
-  animation: sca-ai-glow 2.5s ease-in-out infinite;
+  animation: sca-ai-ripple 3s ease-in-out infinite;
   transition: transform 0.12s ease, background 0.15s ease;
 }
 
@@ -98,12 +98,18 @@
   transform: translateY(-1px);
 }
 
-@keyframes sca-ai-glow {
-  0%, 100% {
-    box-shadow: 0 0 12px 0 rgba(46, 184, 114, 0.35);
+@keyframes sca-ai-ripple {
+  0% {
+    box-shadow: -20px 0 24px -4px rgba(46, 184, 114, 0.7),
+                 0 0 12px 0 rgba(46, 184, 114, 0.35);
   }
   50% {
-    box-shadow: 0 0 28px 0 rgba(46, 184, 114, 0.65);
+    box-shadow: 20px 0 24px -4px rgba(46, 184, 114, 0.7),
+                0 0 12px 0 rgba(46, 184, 114, 0.35);
+  }
+  100% {
+    box-shadow: -20px 0 24px -4px rgba(46, 184, 114, 0.7),
+                 0 0 12px 0 rgba(46, 184, 114, 0.35);
   }
 }
 
