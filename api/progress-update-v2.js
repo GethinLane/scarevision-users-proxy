@@ -112,6 +112,7 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   return data;
 }
 
+// REPLACE with these three functions:
 function safeParseList(s) {
   try {
     const v = JSON.parse(s || "[]");
@@ -119,6 +120,34 @@ function safeParseList(s) {
   } catch {
     return [];
   }
+}
+
+function safeParseCompleted(s) {
+  try {
+    const v = JSON.parse(s || "{}");
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      return v; // already new format {"1": "2026-...", "23": null}
+    }
+    if (Array.isArray(v)) {
+      // Old format [1, 23, 45] — migrate it, dates unknown so use null
+      const map = {};
+      for (const id of v) {
+        const n = Number(id);
+        if (Number.isFinite(n)) map[String(n)] = null;
+      }
+      return map;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function completedMapToArray(map) {
+  return Object.keys(map)
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
 }
 
 export default async function handler(req, res) {
@@ -160,36 +189,37 @@ export default async function handler(req, res) {
     const record = found.records[0];
     const recordId = record.id;
 
-    const flagged = safeParseList(record.fields?.FlaggedCasesJson);
-    const completed = safeParseList(record.fields?.CompletedCasesJson);
+// REPLACE with:
+const flagged = safeParseList(record.fields?.FlaggedCasesJson);
+const completedMap = safeParseCompleted(record.fields?.CompletedCasesJson);
 
-    const flaggedSet = new Set(flagged);
-    const completedSet = new Set(completed);
+const flaggedSet = new Set(flagged);
 
-    if (action === "flag") flaggedSet.add(cid);
-    if (action === "unflag") flaggedSet.delete(cid);
-    if (action === "complete") completedSet.add(cid);
-    if (action === "uncomplete") completedSet.delete(cid);
+if (action === "flag")       flaggedSet.add(cid);
+if (action === "unflag")     flaggedSet.delete(cid);
+if (action === "complete")   completedMap[String(cid)] = new Date().toISOString();
+if (action === "uncomplete") delete completedMap[String(cid)];
 
-    const fields = {
-      FlaggedCasesJson: JSON.stringify(Array.from(flaggedSet).sort((a, b) => a - b)),
-      CompletedCasesJson: JSON.stringify(Array.from(completedSet).sort((a, b) => a - b)),
-      LastSeen: new Date().toISOString(),
-    };
+const fields = {
+  FlaggedCasesJson:   JSON.stringify(Array.from(flaggedSet).sort((a, b) => a - b)),
+  CompletedCasesJson: JSON.stringify(completedMap),
+  LastSeen:           new Date().toISOString(),
+};
 
-    await airtableRequest({
-      baseId,
-      token,
-      path: `${table}/${recordId}`,
-      method: "PATCH",
-      body: { fields },
-    });
+await airtableRequest({
+  baseId,
+  token,
+  path: `${table}/${recordId}`,
+  method: "PATCH",
+  body: { fields },
+});
 
-    return send(req, res, 200, {
-      ok: true,
-      flagged: JSON.parse(fields.FlaggedCasesJson),
-      completed: JSON.parse(fields.CompletedCasesJson),
-    });
+return send(req, res, 200, {
+  ok: true,
+  flagged:        Array.from(flaggedSet).sort((a, b) => a - b),
+  completed:      completedMapToArray(completedMap),
+  completedDates: completedMap,
+});
   } catch (err) {
     return send(req, res, 401, { ok: false, error: err.message || "Unauthorized" });
   }
