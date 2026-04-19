@@ -79,41 +79,43 @@
   const CACHE_KEY     = "sca_progress_v1";
   const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
-  function readCache() {
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      // ✅ Guard: if nothing stored, return null cleanly
-      if (!raw) return null;
+// REPLACE with:
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
 
-      const obj = JSON.parse(raw);
+    const obj = JSON.parse(raw);
 
-      // ✅ Guard: reject stale or malformed cache entries
-      if (!obj?.ts || Date.now() - Number(obj.ts) > CACHE_MAX_AGE) return null;
-      if (!isValidProgress(obj)) return null;
+    if (!obj?.ts || Date.now() - Number(obj.ts) > CACHE_MAX_AGE) return null;
+    if (!isValidProgress(obj)) return null;
 
-      return {
-        completed: toSafeNumberArray(obj.completed),
-        flagged:   toSafeNumberArray(obj.flagged),
-      };
-    } catch {
-      // ✅ Guard: corrupted JSON — clear it so it doesn't keep failing
-      try { localStorage.removeItem(CACHE_KEY); } catch {}
-      return null;
-    }
+    return {
+      completed:      toSafeNumberArray(obj.completed),
+      flagged:        toSafeNumberArray(obj.flagged),
+      completedDates: (obj.completedDates && typeof obj.completedDates === "object")
+                        ? obj.completedDates : {},
+    };
+  } catch {
+    try { localStorage.removeItem(CACHE_KEY); } catch {}
+    return null;
   }
+}
 
-  function writeCache(progress) {
-    try {
-      // ✅ Guard: only write if progress is valid
-      if (!isValidProgress(progress)) return;
+// REPLACE with:
+function writeCache(progress) {
+  try {
+    if (!isValidProgress(progress)) return;
 
-      localStorage.setItem(CACHE_KEY, JSON.stringify({
-        completed: toSafeNumberArray(progress.completed),
-        flagged:   toSafeNumberArray(progress.flagged),
-        ts:        Date.now(),
-      }));
-    } catch {}
-  }
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      completed:      toSafeNumberArray(progress.completed),
+      flagged:        toSafeNumberArray(progress.flagged),
+      completedDates: (progress.completedDates && typeof progress.completedDates === "object")
+                        ? progress.completedDates : {},
+      ts:             Date.now(),
+    }));
+  } catch {}
+}
 
 
   /* ============================================================
@@ -135,9 +137,12 @@
     if (!r.ok || !data.ok) throw new Error(data.error || "progress-get failed");
 
     // ✅ Guard: sanitise API response before using or caching
+// REPLACE with:
     const progress = {
-      completed: toSafeNumberArray(data.completed),
-      flagged:   toSafeNumberArray(data.flagged),
+      completed:      toSafeNumberArray(data.completed),
+      flagged:        toSafeNumberArray(data.flagged),
+      completedDates: (data.completedDates && typeof data.completedDates === "object")
+                        ? data.completedDates : {},
     };
     writeCache(progress);
     return progress;
@@ -178,9 +183,12 @@
     if (!r.ok || !data.ok) throw new Error(data.error || "progress-update failed");
 
     // ✅ Guard: sanitise API response before caching
+// REPLACE with:
     const progress = {
-      completed: toSafeNumberArray(data.completed),
-      flagged:   toSafeNumberArray(data.flagged),
+      completed:      toSafeNumberArray(data.completed),
+      flagged:        toSafeNumberArray(data.flagged),
+      completedDates: (data.completedDates && typeof data.completedDates === "object")
+                        ? data.completedDates : {},
     };
 
     writeCache(progress);
