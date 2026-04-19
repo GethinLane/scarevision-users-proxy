@@ -113,6 +113,7 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   return data;
 }
 
+// REPLACE with:
 function safeParseList(s) {
   try {
     const v = JSON.parse(s || "[]");
@@ -120,6 +121,33 @@ function safeParseList(s) {
   } catch {
     return [];
   }
+}
+
+function safeParseCompleted(s) {
+  try {
+    const v = JSON.parse(s || "{}");
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      return v;
+    }
+    if (Array.isArray(v)) {
+      const map = {};
+      for (const id of v) {
+        const n = Number(id);
+        if (Number.isFinite(n)) map[String(n)] = null;
+      }
+      return map;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function completedMapToArray(map) {
+  return Object.keys(map)
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
 }
 
 export default async function handler(req, res) {
@@ -152,11 +180,17 @@ export default async function handler(req, res) {
       return send(req, res, 404, { ok: false, error: "User not found in Airtable yet" });
     }
 
-    const record = found.records[0];
-    const flagged = safeParseList(record.fields?.FlaggedCasesJson);
-    const completed = safeParseList(record.fields?.CompletedCasesJson);
+// REPLACE with:
+const record = found.records[0];
+const flagged      = safeParseList(record.fields?.FlaggedCasesJson);
+const completedMap = safeParseCompleted(record.fields?.CompletedCasesJson);
 
-    return send(req, res, 200, { ok: true, flagged, completed });
+return send(req, res, 200, {
+  ok:             true,
+  flagged,
+  completed:      completedMapToArray(completedMap),
+  completedDates: completedMap,
+});
   } catch (err) {
     return send(req, res, 401, { ok: false, error: err.message || "Unauthorized" });
   }
