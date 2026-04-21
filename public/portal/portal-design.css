@@ -539,3 +539,248 @@
   color: var(--cc-plum);
   border-color: var(--cc-plum);
 }
+/* ============================================================
+   "How are you revising?" — new layouts
+   ============================================================ */
+
+/* Solo mode: 2×2 grid of square tiles + AI patient hero */
+.sca-cc .cc-start-actions.cc-start-solo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.sca-cc .cc-start-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--cc-rule);
+  border-radius: 10px;
+  padding: 14px;
+  min-height: 96px;
+  text-decoration: none;
+  color: var(--cc-ink-2);
+  transition: border-color .2s, transform .2s, color .2s;
+}
+.sca-cc .cc-start-tile:hover {
+  border-color: var(--cc-ink);
+  transform: translateY(-1px);
+  color: var(--cc-ink);
+}
+.sca-cc .cc-start-tile-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--cc-paper-2);
+  border: 1px solid var(--cc-rule);
+  display: grid;
+  place-items: center;
+  color: var(--cc-ink);
+  font-size: 14px;
+}
+.sca-cc .cc-start-tile-t {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cc-ink);
+  line-height: 1.2;
+}
+.sca-cc .cc-start-tile-s {
+  font-size: 11px;
+  color: var(--cc-muted);
+  line-height: 1.3;
+}
+
+/* AI patient hero (solo mode, full-width row) */
+.sca-cc .cc-start-ai-hero {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--cc-plum-soft);
+  border: 1px solid color-mix(in srgb, var(--cc-plum) 25%, var(--cc-rule));
+  border-radius: 10px;
+  padding: 14px;
+  text-decoration: none;
+  color: var(--cc-plum);
+  box-shadow: 0 6px 16px -10px rgba(107,78,168,0.45);
+  transition: transform .2s, box-shadow .2s;
+}
+.sca-cc .cc-start-ai-hero:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px -10px rgba(107,78,168,0.6);
+}
+.sca-cc .cc-start-ai-hero .cc-start-tile-ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #fff;
+  border-color: color-mix(in srgb, var(--cc-plum) 20%, var(--cc-rule));
+  color: var(--cc-plum);
+  font-size: 18px;
+}
+.sca-cc .cc-start-ai-hero .cc-start-hero-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sca-cc .cc-start-ai-hero .cc-start-hero-t {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cc-plum);
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sca-cc .cc-start-ai-hero .cc-start-hero-s {
+  font-size: 11.5px;
+  color: var(--cc-plum);
+  opacity: 0.75;
+}
+.sca-cc .cc-start-ai-hero .cc-start-hero-pill {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--cc-plum);
+  border: 1px solid color-mix(in srgb, var(--cc-plum) 20%, var(--cc-rule));
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.sca-cc .cc-start-ai-hero .cc-start-hero-arrow {
+  color: var(--cc-plum);
+  font-size: 14px;
+}
+
+/* Pair / Group hero: navy card with two marking sub-options */
+.sca-cc .cc-start-combo {
+  background: var(--cc-ink);
+  color: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 28px -14px rgba(37,53,81,0.35);
+  text-decoration: none;
+  display: block;
+}
+.sca-cc .cc-start-combo-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.sca-cc .cc-start-combo-ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.sca-cc .cc-start-combo-body { flex: 1; }
+.sca-cc .cc-start-combo-t {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 2px;
+}
+.sca-cc .cc-start-combo-s {
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.75);
+}
+.sca-cc .cc-start-combo-split {
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 8px;
+}
+.sca-cc .cc-start-combo-opt {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  transition: background .2s;
+}
+.sca-cc .cc-start-combo-opt:hover {
+  background: rgba(255,255,255,0.14);
+}
+.sca-cc .cc-start-combo-opt-ic {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.15);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.sca-cc .cc-start-combo-opt-text {
+  font-size: 11.5px;
+  color: #fff;
+  line-height: 1.3;
+  opacity: 0.85;
+}
+.sca-cc .cc-start-combo-opt-text b {
+  font-weight: 600;
+  opacity: 1;
+}
+
+/* Recommended variant — larger slot, brighter background */
+.sca-cc .cc-start-combo-opt.is-recommended {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.2);
+}
+.sca-cc .cc-start-combo-opt.is-recommended .cc-start-combo-opt-text { opacity: 1; }
+
+/* AI marking variant — green tint */
+.sca-cc .cc-start-combo-opt.is-ai {
+  background: rgba(46,184,114,0.18);
+  border-color: rgba(82,201,138,0.3);
+}
+.sca-cc .cc-start-combo-opt.is-ai:hover {
+  background: rgba(46,184,114,0.28);
+}
+.sca-cc .cc-start-combo-opt.is-ai .cc-start-combo-opt-ic {
+  background: rgba(46,184,114,0.3);
+  color: #a5e8c2;
+}
+.sca-cc .cc-start-combo-opt.is-ai .cc-start-combo-opt-text {
+  color: #a5e8c2;
+}
+.sca-cc .cc-start-combo-opt.is-ai.is-recommended .cc-start-combo-opt-text { opacity: 1; }
+
+/* Recommended pill */
+.sca-cc .cc-start-combo-pill {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  text-transform: uppercase;
+  font-weight: 500;
+  margin-left: 6px;
+}
+.sca-cc .cc-start-combo-opt.is-ai .cc-start-combo-combo-pill,
+.sca-cc .cc-start-combo-opt.is-ai .cc-start-combo-pill {
+  background: rgba(46,184,114,0.35);
+  color: #a5e8c2;
+}
+
+/* Mobile: stack the sub-options */
+@media (max-width: 560px) {
+  .sca-cc .cc-start-combo-split { grid-template-columns: 1fr; }
+}
