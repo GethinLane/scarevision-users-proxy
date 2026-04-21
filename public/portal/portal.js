@@ -11,6 +11,8 @@
   let totalSCACases = 353;
   let totalAICases  = 40;
   const TOTAL_CASES_FOR_RANDOM = 361; // max possible Case ID for the random-case URL
+  const CASE_IMAGE_BASE = "https://iix7q95khocr9u36.public.blob.vercel-storage.com/CaseImages";
+
 
   const PROXY_BASE        = "https://scarevision-users-proxy.vercel.app";
   const EXAM_CACHE_KEY    = "sca_exam_date_v1";
@@ -176,7 +178,14 @@
     }
     if (startBtn) startBtn.href = href;
     if (thumbLabel) thumbLabel.textContent = `Case #${id}`;
-
+     
+  // Show case image if available; gradient shows through on 404
+  const pickImg = document.getElementById("ccPickImg");
+  if (pickImg) {
+    pickImg.style.display = "";
+    pickImg.src = `${CASE_IMAGE_BASE}/Case-${id}.webp`;
+  }
+     
     const mapRow = Array.isArray(window.SCA_CASE_MAP)
       ? window.SCA_CASE_MAP.find(r => Number(r.id) === Number(id))
       : null;
@@ -317,17 +326,23 @@
       rail.innerHTML = `<div style="padding:14px;color:var(--cc-muted);font-size:13px;">No recently added cases yet.</div>`;
       return;
     }
-    rail.innerHTML = items.map((it, i) => `
-      <a class="cc-rail-card" href="/casev2?case=${it.id}">
-        <div class="cc-rail-thumb" data-i="${pickRecentThumb(i)}">
-          <span class="cc-rail-thumb-num">#${it.id}</span>
-        </div>
-        <div class="cc-rail-meta">
-          <span class="cc-rail-tag">${escapeHtml(it.tag || "New")}</span>
-          <span class="cc-rail-title">${escapeHtml(it.title || ("Case " + it.id))}</span>
-        </div>
-      </a>
-    `).join("");
+rail.innerHTML = items.map((it, i) => `
+  <a class="cc-rail-card" href="/casev2?case=${it.id}">
+    <div class="cc-rail-thumb" data-i="${pickRecentThumb(i)}">
+      <img class="cc-rail-img"
+           src="${CASE_IMAGE_BASE}/Case-${it.id}.webp"
+           alt=""
+           width="400" height="400"
+           loading="lazy" decoding="async"
+           onerror="this.style.display='none'">
+      <span class="cc-rail-thumb-num">#${it.id}</span>
+    </div>
+    <div class="cc-rail-meta">
+      <span class="cc-rail-tag">${escapeHtml(it.tag || "New")}</span>
+      <span class="cc-rail-title">${escapeHtml(it.title || ("Case " + it.id))}</span>
+    </div>
+  </a>
+`).join("");
   }
   function readRecentCache() {
     try {
