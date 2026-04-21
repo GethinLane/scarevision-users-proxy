@@ -221,7 +221,7 @@
   // ----- Start Here tabs -----
 const START_MODES = {
 solo: {
-  sub: "Read, watch, practise — or consult with an AI patient.",
+  sub: "Read, watch, or consult with an AI patient.",
   render: () => `
     <a href="https://www.scarevision.ai/members-portal" class="cc-start-ai-hero">
       <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-brain-circuit"></i></span>
@@ -244,22 +244,6 @@ solo: {
       <span class="cc-start-tile-body">
         <span class="cc-start-tile-t">Watch a consultation</span>
         <span class="cc-start-tile-s">Example videos with commentary.</span>
-      </span>
-      <span class="cc-start-tile-arrow"><i class="fa-sharp fa-light fa-arrow-right"></i></span>
-    </a>
-    <a href="https://www.scarevision.co.uk/random-medical-condition-generator-m" class="cc-start-tile">
-      <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-comments"></i></span>
-      <span class="cc-start-tile-body">
-        <span class="cc-start-tile-t">Practise explaining</span>
-        <span class="cc-start-tile-s">Random condition generator.</span>
-      </span>
-      <span class="cc-start-tile-arrow"><i class="fa-sharp fa-light fa-arrow-right"></i></span>
-    </a>
-    <a href="https://www.scarevision.co.uk/howtohandle" class="cc-start-tile">
-      <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-book-bookmark"></i></span>
-      <span class="cc-start-tile-body">
-        <span class="cc-start-tile-t">Consultation guides</span>
-        <span class="cc-start-tile-s">Strategies for complex scenarios.</span>
       </span>
       <span class="cc-start-tile-arrow"><i class="fa-sharp fa-light fa-arrow-right"></i></span>
     </a>
