@@ -223,6 +223,14 @@ const START_MODES = {
 solo: {
   sub: "Read, watch, practise — or consult with an AI patient.",
   render: () => `
+    <a href="https://www.scarevision.ai/members-portal" class="cc-start-ai-hero">
+      <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-brain-circuit"></i></span>
+      <span class="cc-start-hero-body">
+        <span class="cc-start-hero-t">Practise with an AI patient <span class="cc-start-hero-pill">Credits</span></span>
+        <span class="cc-start-hero-s">A simulated consultation that responds to your questions.</span>
+      </span>
+      <i class="fa-sharp fa-light fa-arrow-right cc-start-hero-arrow"></i>
+    </a>
     <a href="/case-selection" class="cc-start-tile">
       <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-book-open-reader"></i></span>
       <span class="cc-start-tile-body">
@@ -254,14 +262,6 @@ solo: {
         <span class="cc-start-tile-s">Strategies for complex scenarios.</span>
       </span>
       <span class="cc-start-tile-arrow"><i class="fa-sharp fa-light fa-arrow-right"></i></span>
-    </a>
-    <a href="https://www.scarevision.ai/members-portal" class="cc-start-ai-hero">
-      <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-brain-circuit"></i></span>
-      <span class="cc-start-hero-body">
-        <span class="cc-start-hero-t">Practise with an AI patient <span class="cc-start-hero-pill">Credits</span></span>
-        <span class="cc-start-hero-s">A simulated consultation that responds to your questions.</span>
-      </span>
-      <i class="fa-sharp fa-light fa-arrow-right cc-start-hero-arrow"></i>
     </a>
   `,
 },
