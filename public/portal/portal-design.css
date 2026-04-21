@@ -1115,3 +1115,18 @@
   padding: 24px;
   gap: 12px;
 }
+.sca-cc .cc-start-combo {
+  text-decoration: none;
+  color: inherit;
+  transition: transform .2s, box-shadow .2s;
+}
+.sca-cc .cc-start-combo:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px -14px rgba(37,53,81,0.5);
+}
+.sca-cc .cc-start-combo:hover .cc-start-combo-opt.is-recommended {
+  background: rgba(255,255,255,0.16);
+}
+.sca-cc .cc-start-combo:hover .cc-start-combo-opt.is-ai {
+  background: rgba(46,184,114,0.24);
+}
