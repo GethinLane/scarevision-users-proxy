@@ -988,24 +988,9 @@
   font-size: 12px;
 }
 
-/* Larger headings for featured cards */
-.sca-cc .cc-cat-featured .cc-cat-head h3 {
-  font-size: 21px;
-}
-.sca-cc .cc-cat-featured {
-  padding: 22px;
-}
 
-/* Responsive: collapse to existing 3-col under 1100px, then 2, then 1 */
-@media (max-width: 1100px) {
-  .sca-cc .cc-bento {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .sca-cc .cc-cat-featured,
-  .sca-cc .cc-cat:not(.cc-cat-featured) {
-    grid-column: span 1;
-  }
-}
+
+
 @media (max-width: 900px) {
   .sca-cc .cc-bento {
     grid-template-columns: repeat(2, 1fr);
@@ -1129,4 +1114,7 @@
 }
 .sca-cc .cc-start-combo:hover .cc-start-combo-opt.is-ai {
   background: rgba(46,184,114,0.24);
+}
+.sca-cc .cc-bento {
+  grid-template-columns: repeat(3, 1fr);
 }
