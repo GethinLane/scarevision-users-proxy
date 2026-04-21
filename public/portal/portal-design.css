@@ -482,3 +482,70 @@
 .sca-cc .cc-rail-thumb .cc-rail-thumb-num {
   z-index: 1;
 }
+
+
+
+/* ============================================================
+   CASE OF THE DAY · BLEED VARIANT (test overlay)
+   Paste this AFTER your existing styles. Remove to revert.
+   ============================================================ */
+
+.sca-cc .cc-pick {
+  grid-template-columns: 1fr 1fr;
+  padding: 0;
+  overflow: hidden;
+  min-height: 340px;
+}
+
+.sca-cc .cc-pick-thumb {
+  min-height: 0;
+  border-radius: 0;
+  border: none;
+  aspect-ratio: auto;
+  position: relative;
+  overflow: hidden;
+  align-self: stretch;
+}
+
+/* The image bleeds edge-to-edge on its half */
+.sca-cc .cc-pick-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+/* Soft fade from image into navy on the right edge */
+.sca-cc .cc-pick-thumb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 40%, #253551 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Kill the existing diagonal hatching - it fights the image */
+.sca-cc .cc-pick-thumb::after {
+  display: none;
+}
+
+/* The case number label, repositioned */
+.sca-cc .cc-pick-thumb-label {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  margin: 0;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+/* Text column gets proper padding since the card itself now has none */
+.sca-cc .cc-pick-body {
+  padding: 22px 22px 22px 4px;
+  z-index: 2;
+  position: relative;
+}
