@@ -784,3 +784,9 @@
 @media (max-width: 560px) {
   .sca-cc .cc-start-combo-split { grid-template-columns: 1fr; }
 }
+.sca-cc .cc-start-tile-t {
+  font-size: 14px;
+}
+.sca-cc .cc-start-tile-s {
+  font-size: 12.5px;
+}
