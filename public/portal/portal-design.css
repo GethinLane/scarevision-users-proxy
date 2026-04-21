@@ -483,5 +483,7 @@
   z-index: 1;
 }
 
-
+.sca-cc .cc-pick-thumb {
+  border: none;
+}
 
