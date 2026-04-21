@@ -395,7 +395,7 @@
 .sca-cc .cc-rail::-webkit-scrollbar-thumb { background: var(--cc-rule-2); border-radius: 4px; }
 .sca-cc .cc-rail-card { scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px; }
 .sca-cc .cc-rail-thumb {
-  aspect-ratio: 16/10; border-radius: 10px; border: 1px solid var(--cc-rule);
+  aspect-ratio: 1/1; border-radius: 10px; border: 1px solid var(--cc-rule);
   background-color: var(--cc-paper-2); position: relative; overflow: hidden;
   background-image: repeating-linear-gradient(45deg, rgba(37,53,81,0.04) 0 1px, transparent 1px 10px);
 }
