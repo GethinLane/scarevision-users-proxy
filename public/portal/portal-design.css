@@ -497,3 +497,19 @@
   border: none;
 }
 
+/* Purple-themed hover for AI Tools card */
+.sca-cc .cc-cat-ai .cc-tile:hover { 
+  background: color-mix(in srgb, var(--cc-plum-soft) 60%, white); 
+}
+
+/* Disabled tile styling (AI Marking "coming soon") */
+.sca-cc .cc-tile-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.sca-cc .cc-tile-disabled:hover {
+  background: transparent !important;
+}
+.sca-cc .cc-tile-disabled .cc-tile-title {
+  color: var(--cc-muted);
+}
