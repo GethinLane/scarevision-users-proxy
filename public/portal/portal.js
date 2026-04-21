@@ -249,55 +249,54 @@ solo: {
     </a>
   `,
 },
-  pair: {
-    sub: "One's the doctor, one's the patient. Mark it together after.",
-    render: () => `
-      <div class="cc-start-combo">
-        <a href="/case-selection" class="cc-start-combo-head" style="text-decoration:none;">
-          <span class="cc-start-combo-ic"><i class="fa-sharp fa-light fa-user-doctor"></i></span>
-          <div class="cc-start-combo-body">
-            <div class="cc-start-combo-t">Run a case together</div>
-            <div class="cc-start-combo-s">Share the case to your partner's device, then swap roles.</div>
-          </div>
-        </a>
-        <div class="cc-start-combo-split">
-          <a href="#TODO-AI-MARKING" class="cc-start-combo-opt is-ai is-recommended">
-            <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-wand-magic-sparkles"></i></span>
-            <span class="cc-start-combo-opt-text"><b>Let AI mark it</b><span class="cc-start-combo-pill">Recommended</span></span>
-          </a>
-          <a href="#TODO-PEER-MARKING" class="cc-start-combo-opt">
-            <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-clipboard-check"></i></span>
-            <span class="cc-start-combo-opt-text"><b>Mark yourselves</b></span>
-          </a>
+pair: {
+  sub: "One's the doctor, one's the patient. Mark it together after.",
+  render: () => `
+    <a href="/case-selection" class="cc-start-combo">
+      <div class="cc-start-combo-head">
+        <span class="cc-start-combo-ic"><i class="fa-sharp fa-light fa-user-doctor"></i></span>
+        <div class="cc-start-combo-body">
+          <div class="cc-start-combo-t">Run a case together</div>
+          <div class="cc-start-combo-s">Share the case to your partner's device, then swap roles.</div>
         </div>
       </div>
-    `,
-  },
-  group: {
-    sub: "Run a case, one person watches and marks. Rotate between rounds.",
-    render: () => `
-      <div class="cc-start-combo">
-        <a href="/case-selection" class="cc-start-combo-head" style="text-decoration:none;">
-          <span class="cc-start-combo-ic"><i class="fa-sharp fa-light fa-users"></i></span>
-          <div class="cc-start-combo-body">
-            <div class="cc-start-combo-t">Run cases as a group</div>
-            <div class="cc-start-combo-s">Share the case to each person's device. Rotate doctor/patient/observer.</div>
-          </div>
-        </a>
-        <div class="cc-start-combo-split">
-          <a href="#TODO-PEER-MARKING" class="cc-start-combo-opt is-recommended">
-            <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-clipboard-check"></i></span>
-            <span class="cc-start-combo-opt-text"><b>Someone marks it</b><span class="cc-start-combo-pill">Recommended</span></span>
-          </a>
-          <a href="#TODO-AI-MARKING" class="cc-start-combo-opt is-ai">
-            <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-wand-magic-sparkles"></i></span>
-            <span class="cc-start-combo-opt-text"><b>Or let AI mark</b></span>
-          </a>
+      <div class="cc-start-combo-split">
+        <div class="cc-start-combo-opt is-ai is-recommended">
+          <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-wand-magic-sparkles"></i></span>
+          <span class="cc-start-combo-opt-text"><b>Let AI mark it</b><span class="cc-start-combo-pill">Recommended</span></span>
+        </div>
+        <div class="cc-start-combo-opt">
+          <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-clipboard-check"></i></span>
+          <span class="cc-start-combo-opt-text"><b>Mark yourselves</b></span>
         </div>
       </div>
-    `,
-  },
-};
+    </a>
+  `,
+},
+group: {
+  sub: "Run a case, one person watches and marks. Rotate between rounds.",
+  render: () => `
+    <a href="/case-selection" class="cc-start-combo">
+      <div class="cc-start-combo-head">
+        <span class="cc-start-combo-ic"><i class="fa-sharp fa-light fa-users"></i></span>
+        <div class="cc-start-combo-body">
+          <div class="cc-start-combo-t">Run cases as a group</div>
+          <div class="cc-start-combo-s">Share the case to each person's device. Rotate doctor/patient/observer.</div>
+        </div>
+      </div>
+      <div class="cc-start-combo-split">
+        <div class="cc-start-combo-opt is-recommended">
+          <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-clipboard-check"></i></span>
+          <span class="cc-start-combo-opt-text"><b>Someone marks it</b><span class="cc-start-combo-pill">Recommended</span></span>
+        </div>
+        <div class="cc-start-combo-opt is-ai">
+          <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-wand-magic-sparkles"></i></span>
+          <span class="cc-start-combo-opt-text"><b>Or let AI mark</b></span>
+        </div>
+      </div>
+    </a>
+  `,
+},
 
 function renderStartMode(mode) {
   const m = START_MODES[mode] || START_MODES.solo;
