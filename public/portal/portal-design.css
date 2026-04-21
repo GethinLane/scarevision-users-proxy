@@ -513,3 +513,29 @@
 .sca-cc .cc-tile-disabled .cc-tile-title {
   color: var(--cc-muted);
 }
+/* Cases done stat — clickable version */
+.sca-cc .cc-stat-link {
+  text-decoration: none;
+  color: inherit;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 10px;
+  transition: background .2s;
+}
+.sca-cc .cc-stat-link:hover {
+  background: var(--cc-paper-2);
+}
+
+/* "View my progress" link in the subline */
+.sca-cc .cc-sub-link {
+  color: var(--cc-ink);
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 1px solid var(--cc-rule-2);
+  margin-left: 6px;
+  transition: border-color .2s, color .2s;
+}
+.sca-cc .cc-sub-link:hover {
+  color: var(--cc-plum);
+  border-color: var(--cc-plum);
+}
