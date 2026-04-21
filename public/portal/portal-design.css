@@ -202,11 +202,21 @@
   background: linear-gradient(140deg, var(--cc-ink-2), #1c2b47 60%, var(--cc-ink));
   display: grid; place-items: end start;
 }
-.sca-cc .cc-pick-thumb[data-seed="0"] { background: linear-gradient(140deg, var(--cc-ink-2), var(--cc-ink) 70%, #151f34); }
-.sca-cc .cc-pick-thumb[data-seed="1"] { background: linear-gradient(140deg, #4a6690, var(--cc-ink-2) 60%, var(--cc-ink)); }
-.sca-cc .cc-pick-thumb[data-seed="2"] { background: linear-gradient(140deg, var(--cc-ink-2), #1c2b47 60%, var(--cc-ink)); }
-.sca-cc .cc-pick-thumb[data-seed="3"] { background: linear-gradient(140deg, #5a6e95, var(--cc-ink-2) 55%, var(--cc-ink)); }
-.sca-cc .cc-pick-thumb[data-seed="4"] { background: linear-gradient(140deg, var(--cc-paper-3), var(--cc-ink-2) 65%, var(--cc-ink)); }
+.sca-cc .cc-pick-thumb[data-seed="0"] { 
+  background: linear-gradient(140deg, #4a3b7a, #253551 60%, #1c2b47); 
+}
+.sca-cc .cc-pick-thumb[data-seed="1"] { 
+  background: linear-gradient(140deg, #c65d3d, #6b4ea8 55%, #253551); 
+}
+.sca-cc .cc-pick-thumb[data-seed="2"] { 
+  background: linear-gradient(140deg, #2d5f7a, #253551 55%, #1c2b47); 
+}
+.sca-cc .cc-pick-thumb[data-seed="3"] { 
+  background: linear-gradient(140deg, #d89a5b, #8b5a8e 50%, #3a4968); 
+}
+.sca-cc .cc-pick-thumb[data-seed="4"] { 
+  background: linear-gradient(140deg, #6b4ea8, #3a4968 55%, #1c2b47); 
+}
 .sca-cc .cc-pick-thumb::after {
   content: ""; position: absolute; inset: 0;
   background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 10px);
