@@ -1019,3 +1019,88 @@
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
+/* ============================================================
+   LEGIBILITY FIX — bump all body text to 14px minimum,
+   all titles to 15px minimum.
+   This block overrides earlier size declarations.
+   Paste at end of <style>.
+   ============================================================ */
+
+/* Solo mode tiles */
+.sca-cc .cc-start-tile-t {
+  font-size: 15px;
+}
+.sca-cc .cc-start-tile-s {
+  font-size: 14px;
+}
+
+/* Solo AI patient hero */
+.sca-cc .cc-start-ai-hero .cc-start-hero-t {
+  font-size: 16px;
+}
+.sca-cc .cc-start-ai-hero .cc-start-hero-s {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+/* Pair + Group combo cards (main title + description) */
+.sca-cc .cc-start-combo-t {
+  font-size: 16px;
+}
+.sca-cc .cc-start-combo-s {
+  font-size: 14px;
+}
+
+/* Pair + Group combo sub-options (AI marks / Peer marks) */
+.sca-cc .cc-start-combo-opt-text {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Bento hero tile description (Browse Cases / Browse Videos) */
+.sca-cc .cc-tile-hero-desc {
+  font-size: 14px;
+}
+
+/* Bento secondary tile (Search for a Video) */
+.sca-cc .cc-tile-secondary .cc-tile-title {
+  font-size: 15px;
+}
+.sca-cc .cc-tile-secondary .cc-tile-desc {
+  font-size: 14px;
+  white-space: normal;
+}
+
+/* Mini-tiles (Random Case / Mock Exam / My Progress) — 
+   constrained by width, so bumped less */
+.sca-cc .cc-tile-mini-title {
+  font-size: 13px;
+}
+
+/* Recently added rail */
+.sca-cc .cc-rail-tag {
+  font-size: 12px;
+}
+
+/* Regular bento tile descriptions (for consistency) */
+.sca-cc .cc-tile-desc {
+  font-size: 14px;
+}
+.sca-cc .cc-tile-title {
+  font-size: 15.5px;
+}
+
+/* The greeting subline under "Hello, free." */
+.sca-cc .cc-sub {
+  font-size: 16px;
+}
+
+/* Start here subline (under "How are you revising?") */
+.sca-cc .cc-start-sub {
+  font-size: 15px;
+}
+
+/* Today's Pick blurb */
+.sca-cc .cc-pick-blurb {
+  font-size: 15px;
+}
