@@ -219,57 +219,97 @@
   });
 
   // ----- Start Here tabs -----
-  const START_MODES = {
-    solo: {
-      sub: "Read, watch, or practise with an AI patient.",
-      actions: [
-        { ic: "book",  t: "Read a case",           s: "Work through on your own.",             href: "/case-selection" },
-        { ic: "play",  t: "Watch a consultation",   s: "Example videos with commentary.",       href: "/scavideos" },
-        { ic: "brain", t: "AI patient",             s: "Simulated consultation.", badge: "Credits", href: "https://www.scarevision.ai/members-portal" },
-      ],
-    },
-    pair: {
-      sub: "Two of you working through a case — one doctor, one patient.",
-      actions: [
-        { ic: "people", t: "Share a case together",  s: "Read and discuss in real time.",       href: "/case-selection" },
-        { ic: "play",   t: "Watch a video together", s: "Consultations with commentary.",       href: "/scavideos" },
-        { ic: "mic",    t: "Practise explaining",    s: "Random condition generator.",          href: "https://www.scarevision.co.uk/random-medical-condition-generator-m" },
-      ],
-    },
-    group: {
-      sub: "Three or more — use Revision Rooms to coordinate.",
-      actions: [
-        { ic: "people", t: "Open Revision Rooms",    s: "Find or host a session.", badge: "NEW", href: "/revisionrooms" },
-        { ic: "grad",   t: "Candidate FAQ",          s: "How high-scorers ran groups.",         href: "/succesful-candidate-faq" },
-        { ic: "play",   t: "Group video session",    s: "Watch and debrief together.",          href: "/scavideos" },
-      ],
-    },
-  };
-  function startHereIcon(name) {
-    const i = {
-      book:   '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19a2 2 0 0 1 2-2h13"/>',
-      play:   '<path d="M8 5v14l11-7z"/>',
-      brain:  '<path d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-2 5 3 3 0 0 0 2 5v1a3 3 0 0 0 3 3h1V4z"/><path d="M15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 2 5 3 3 0 0 1-2 5v1a3 3 0 0 1-3 3h-1V4z"/>',
-      people: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="7" r="2.5"/><path d="M15 13a5 5 0 0 1 6 5"/>',
-      grad:   '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v4c0 2 3 3.5 6 3.5s6-1.5 6-3.5v-4"/>',
-      mic:    '<rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
-    }[name] || '<circle cx="12" cy="12" r="8"/>';
-    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${i}</svg>`;
-  }
-  function renderStartMode(mode) {
-    const m = START_MODES[mode] || START_MODES.solo;
-    document.getElementById("ccStartSub").textContent = m.sub;
-    document.getElementById("ccStartActions").innerHTML = m.actions.map(a => `
-      <a href="${a.href}" class="cc-start-action">
-        <span class="cc-start-ic">${startHereIcon(a.ic)}</span>
-        <span class="cc-start-text">
-          <span class="cc-start-t">${escapeHtml(a.t)}${a.badge ? `<span class="cc-start-pill">${escapeHtml(a.badge)}</span>` : ""}</span>
-          <span class="cc-start-s">${escapeHtml(a.s)}</span>
-        </span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 5 7 7-7 7"/></svg>
+const START_MODES = {
+  solo: {
+    sub: "Read, watch, practise — or consult with an AI patient.",
+    render: () => `
+      <a href="/case-selection" class="cc-start-tile">
+        <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-book-open-reader"></i></span>
+        <span class="cc-start-tile-t">Read a case</span>
+        <span class="cc-start-tile-s">Work through on your own.</span>
       </a>
-    `).join("");
-  }
+      <a href="/scavideos" class="cc-start-tile">
+        <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-circle-play"></i></span>
+        <span class="cc-start-tile-t">Watch a consultation</span>
+        <span class="cc-start-tile-s">Example videos with commentary.</span>
+      </a>
+      <a href="https://www.scarevision.co.uk/random-medical-condition-generator-m" class="cc-start-tile">
+        <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-comments"></i></span>
+        <span class="cc-start-tile-t">Practise explaining</span>
+        <span class="cc-start-tile-s">Random condition generator.</span>
+      </a>
+      <a href="https://www.scarevision.co.uk/howtohandle" class="cc-start-tile">
+        <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-book-bookmark"></i></span>
+        <span class="cc-start-tile-t">Consultation guides</span>
+        <span class="cc-start-tile-s">Strategies for complex scenarios.</span>
+      </a>
+      <a href="https://www.scarevision.ai/members-portal" class="cc-start-ai-hero">
+        <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-brain-circuit"></i></span>
+        <span class="cc-start-hero-body">
+          <span class="cc-start-hero-t">Practise with an AI patient <span class="cc-start-hero-pill">Credits</span></span>
+          <span class="cc-start-hero-s">A simulated consultation that responds to your questions.</span>
+        </span>
+        <i class="fa-sharp fa-light fa-arrow-right cc-start-hero-arrow"></i>
+      </a>
+    `,
+  },
+  pair: {
+    sub: "One's the doctor, one's the patient. Mark it together after.",
+    render: () => `
+      <div class="cc-start-combo">
+        <a href="/case-selection" class="cc-start-combo-head" style="text-decoration:none;">
+          <span class="cc-start-combo-ic"><i class="fa-sharp fa-light fa-user-doctor"></i></span>
+          <div class="cc-start-combo-body">
+            <div class="cc-start-combo-t">Run a case together</div>
+            <div class="cc-start-combo-s">Share the case to your partner's device, then swap roles.</div>
+          </div>
+        </a>
+        <div class="cc-start-combo-split">
+          <a href="#TODO-AI-MARKING" class="cc-start-combo-opt is-ai is-recommended">
+            <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-wand-magic-sparkles"></i></span>
+            <span class="cc-start-combo-opt-text"><b>Let AI mark it</b><span class="cc-start-combo-pill">Recommended</span></span>
+          </a>
+          <a href="#TODO-PEER-MARKING" class="cc-start-combo-opt">
+            <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-clipboard-check"></i></span>
+            <span class="cc-start-combo-opt-text"><b>Mark yourselves</b></span>
+          </a>
+        </div>
+      </div>
+    `,
+  },
+  group: {
+    sub: "Run a case, one person watches and marks. Rotate between rounds.",
+    render: () => `
+      <div class="cc-start-combo">
+        <a href="/case-selection" class="cc-start-combo-head" style="text-decoration:none;">
+          <span class="cc-start-combo-ic"><i class="fa-sharp fa-light fa-users"></i></span>
+          <div class="cc-start-combo-body">
+            <div class="cc-start-combo-t">Run cases as a group</div>
+            <div class="cc-start-combo-s">Share the case to each person's device. Rotate doctor/patient/observer.</div>
+          </div>
+        </a>
+        <div class="cc-start-combo-split">
+          <a href="#TODO-PEER-MARKING" class="cc-start-combo-opt is-recommended">
+            <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-clipboard-check"></i></span>
+            <span class="cc-start-combo-opt-text"><b>Someone marks it</b><span class="cc-start-combo-pill">Recommended</span></span>
+          </a>
+          <a href="#TODO-AI-MARKING" class="cc-start-combo-opt is-ai">
+            <span class="cc-start-combo-opt-ic"><i class="fa-sharp fa-light fa-wand-magic-sparkles"></i></span>
+            <span class="cc-start-combo-opt-text"><b>Or let AI mark</b></span>
+          </a>
+        </div>
+      </div>
+    `,
+  },
+};
+
+function renderStartMode(mode) {
+  const m = START_MODES[mode] || START_MODES.solo;
+  document.getElementById("ccStartSub").textContent = m.sub;
+  const container = document.getElementById("ccStartActions");
+  container.className = "cc-start-actions" + (mode === "solo" ? " cc-start-solo" : "");
+  container.innerHTML = m.render();
+}
   document.getElementById("ccStartTabs")?.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-mode]");
     if (!btn) return;
