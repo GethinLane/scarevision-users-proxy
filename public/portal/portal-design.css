@@ -1104,3 +1104,14 @@
 .sca-cc .cc-pick-blurb {
   font-size: 15px;
 }
+.sca-cc .cc-start-actions.cc-start-solo {
+  gap: 12px;
+}
+.sca-cc .cc-start {
+  padding: 24px;
+  gap: 18px;
+}
+.sca-cc .cc-cat-featured {
+  padding: 24px;
+  gap: 12px;
+}
