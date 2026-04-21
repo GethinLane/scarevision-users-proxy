@@ -297,7 +297,7 @@ group: {
     </a>
   `,
 },
-
+};
 function renderStartMode(mode) {
   const m = START_MODES[mode] || START_MODES.solo;
   document.getElementById("ccStartSub").textContent = m.sub;
