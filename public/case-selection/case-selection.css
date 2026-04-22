@@ -422,7 +422,26 @@
   transition: background .15s, border-color .15s;
 }
 .cx-root .cx-case-check:hover { border-color: var(--cx-ink); }
-.cx-root .cx-case-check.done { background: var(--cx-ink); border-color: var(--cx-ink); }
+/* Completed state — green, matching the old site's fa-square-check in green.
+   The old --sca-green-light was #9ad6a9 / --sca-green-dark #2f7d3b; I'm using
+   the same approachable medium-green (#4fbf67 → #1f7a3a on hover) so the
+   cases list on this page feels identical to the rest of the site. */
+.cx-root .cx-case-check.done {
+  background: #4fbf67;
+  border-color: #4fbf67;
+}
+.cx-root .cx-case-check.done:hover {
+  background: #1f7a3a;
+  border-color: #1f7a3a;
+}
+.cx-drawer-cases .cx-case-check.done {
+  background: #4fbf67;
+  border-color: #4fbf67;
+}
+.cx-drawer-cases .cx-case-check.done:hover {
+  background: #1f7a3a;
+  border-color: #1f7a3a;
+}
 .cx-root .cx-case-check svg { width: 12px; height: 12px; }
 .cx-root .cx-case-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cx-root .cx-case-title {
@@ -437,8 +456,11 @@
 }
 .cx-root .cx-case-meta { display: flex; align-items: center; gap: 14px; }
 
-/* Video link — Font Awesome icon, sized to match the old list's 1.2rem = 19.2px.
-   No background pill — keeps it visually closer to the original site. */
+/* Video link — Font Awesome icon. Default colour matches the stars
+   (rule-2 muted grey); hover darkens to ink navy. When the host site has
+   Font Awesome Pro loaded, the font-weight shift gives a true light→solid
+   swap on hover; on FA Free this is a colour-only transition because the
+   regular/light weights aren't shipped. Either way looks clean. */
 .cx-root .cx-case-video-link {
   display: inline-flex;
   align-items: center;
@@ -449,7 +471,7 @@
 }
 .cx-root .cx-case-video-link:hover { color: var(--cx-ink); }
 .cx-root .cx-case-video-ic {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
 }
 
@@ -461,7 +483,7 @@
   line-height: 1;
 }
 .cx-root .cx-case-star {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--cx-rule-2);
   line-height: 1;
 }
@@ -673,7 +695,7 @@
   transition: background .15s, border-color .15s;
 }
 .cx-drawer-cases .cx-case-check:hover { border-color: var(--cx-ink, #253551); }
-.cx-drawer-cases .cx-case-check.done { background: var(--cx-ink, #253551); border-color: var(--cx-ink, #253551); }
+/* Drawer .cx-case-check.done green state is set earlier in the file so we don't duplicate here */
 .cx-drawer-cases .cx-case-check svg { width: 12px; height: 12px; }
 .cx-drawer-cases .cx-case-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cx-drawer-cases .cx-case-title {
@@ -692,9 +714,11 @@
   color: var(--cx-rule-2, #bfc8d9); transition: color .15s; padding: 2px 4px;
 }
 .cx-drawer-cases .cx-case-video-link:hover { color: var(--cx-ink, #253551); }
-.cx-drawer-cases .cx-case-video-ic { font-size: 20px; line-height: 1; }
+.cx-drawer-cases .cx-case-video-ic {
+  font-size: 18px; line-height: 1;
+}
 .cx-drawer-cases .cx-case-diff { display: inline-flex; align-items: center; gap: 2px; line-height: 1; }
-.cx-drawer-cases .cx-case-star { font-size: 14px; color: var(--cx-rule-2, #bfc8d9); line-height: 1; }
+.cx-drawer-cases .cx-case-star { font-size: 12px; color: var(--cx-rule-2, #bfc8d9); line-height: 1; }
 .cx-drawer-cases .cx-case-star.on { color: var(--cx-peri, #7DA8F0); }
 .cx-drawer-cases .cx-case:hover .cx-case-video-link,
 .cx-drawer-cases .cx-case:hover .cx-case-star { color: var(--cx-ink, #253551); }
