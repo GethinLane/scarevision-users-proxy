@@ -1029,19 +1029,42 @@
     checkbox.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleCaseDone(c); });
     checkbox.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCaseDone(c); } });
 
-    const meta = h("span", { class: "cx-case-meta" },
-      c.videoLink
-        ? h("a", {
-            href: c.videoLink, target: "_blank", rel: "noopener",
-            class: "cx-case-icon", title: "Video", onClick: (e) => e.stopPropagation(),
-          }, icon("play", 12))
-        : null,
-      state.filters.difficulty
-        ? h("span", { class: "cx-case-diff" },
-            ...[1,2,3].map(i => h("span", { class: i <= c.difficulty ? "on" : "" }, "★")),
-          )
-        : null,
-    );
+    const meta = h("span", { class: "cx-case-meta" });
+
+    // Video link — Font Awesome icon, matches old site's fa-sharp fa-light fa-video
+    // with hover swap to fa-solid.
+    if (c.videoLink) {
+      const va = document.createElement("a");
+      va.href = c.videoLink;
+      va.target = "_blank";
+      va.rel = "noopener";
+      va.className = "cx-case-video-link";
+      va.title = "Watch video";
+      va.addEventListener("click", (e) => e.stopPropagation());
+
+      const vi = document.createElement("i");
+      // In FA6 Free, fa-video only exists in the solid style. The old site ran
+      // on FA Pro (fa-sharp fa-light) which is not guaranteed here. Using the
+      // universally available solid variant and handling hover emphasis via
+      // CSS color alone keeps this resilient across Free and Pro installs.
+      vi.className = "fa-solid fa-video cx-case-video-ic";
+      va.appendChild(vi);
+      meta.appendChild(va);
+    }
+
+    // Difficulty stars — Font Awesome solid/regular star (matches old site).
+    if (state.filters.difficulty) {
+      const stars = document.createElement("span");
+      stars.className = "cx-case-diff";
+      for (let i = 1; i <= 3; i++) {
+        const star = document.createElement("i");
+        star.className = (i <= c.difficulty)
+          ? "fa-solid fa-star cx-case-star on"
+          : "fa-regular fa-star cx-case-star";
+        stars.appendChild(star);
+      }
+      meta.appendChild(stars);
+    }
 
     return h("a", {
       href:  c.link || "#",
