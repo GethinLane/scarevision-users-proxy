@@ -111,16 +111,19 @@
     progressReady: false,
 
     // ui
-    view:     readInitialView(),
-    kind:     "topic",                    // "topic" | "experience"
-    query:    "",
-    filters:  { ...DEFAULT_FILTERS },
-    opened:   null,                       // topic id (drawer target, grid/priority views)
-    listOpen: new Set(),                  // list view: which topics are expanded
+    view:           readInitialView(),
+    kind:           "topic",                 // "topic" | "experience"
+    selectedThemes: [],                      // Select2 multi-select values (Themes field)
+    allThemes:      [],                      // union of Themes across all records
+    filters:        { ...DEFAULT_FILTERS },
+    opened:         null,                    // topic id (drawer target, grid/priority views)
+    listOpen:       new Set(),               // list view: which topics are expanded
 
     // derived (recomputed on state change)
-    topics:       [],
-    casesByTopic: {},
+    topics:            [],
+    casesByTopic:      {},
+    totalUniqueCases:  0,
+    totalUniqueDone:   0,
   };
 
   function readInitialView() {
@@ -242,10 +245,28 @@
       ? "AI Link"
       : (state.filters.diagnosis ? "Link" : "Link-nt");
 
-    // Filter out AI-only records on non-AI sites if needed (match old behaviour).
+    // Build the complete theme set across ALL records (not filtered), so the
+    // Select2 options always show every available theme regardless of current
+    // filters. Matches old behaviour in populateFilters().
+    const themeSet = new Set();
+    for (const r of records) {
+      const t = r.fields?.["Themes"];
+      if (Array.isArray(t)) for (const x of t) if (x) themeSet.add(String(x));
+    }
+    state.allThemes = Array.from(themeSet).sort();
+
+    // Record-level visibility (same rules as old script):
+    //   - on scarevision.ai, require an AI Link
+    //   - Video Only filter drops anything without a Video Link
+    //   - Selected themes: intersection — record must contain every selected theme
     const visible = records.filter(r => {
-      if (onAi && !r.fields?.["AI Link"]) return false;
-      if (state.filters.videoOnly && !r.fields?.["Video Link"]) return false;
+      const f = r.fields || {};
+      if (onAi && !f["AI Link"]) return false;
+      if (state.filters.videoOnly && !f["Video Link"]) return false;
+      if (state.selectedThemes.length) {
+        const rt = f["Themes"] || [];
+        if (!state.selectedThemes.every(t => rt.includes(t))) return false;
+      }
       return true;
     });
 
@@ -257,16 +278,17 @@
       const cid = Number.isFinite(caseId) ? caseId : null;
 
       return {
-        id:        cid,
-        airId:     r.id,
-        name:      String(f["Name"] || "").trim(),
-        pc:        String(f["Presenting Complaint"] || "").trim(),
-        link:      f[linkField] || f["Link"] || "#",
-        videoLink: f["Video Link"] || null,
+        id:         cid,
+        airId:      r.id,
+        name:       String(f["Name"] || "").trim(),
+        pc:         String(f["Presenting Complaint"] || "").trim(),
+        link:       f[linkField] || f["Link"] || "#",
+        videoLink:  f["Video Link"] || null,
         difficulty: Math.max(0, Math.min(3, parseInt(f["Difficulty"] || "0", 10) || 0)),
-        topics:    asArray(f["Clinical Topics"]),
-        domains:   asArray(f["Domain"] || f["Themes"]),
-        done:      cid != null && window.scaCompletedSet.has(String(cid)),
+        topics:     asArray(f["Clinical Topics"]),
+        domains:    asArray(f["Domain"] || f["Themes"]),
+        themes:     asArray(f["Themes"]),
+        done:       cid != null && window.scaCompletedSet.has(String(cid)),
       };
     });
 
@@ -274,7 +296,7 @@
     const groupKey = state.kind === "topic" ? "topics" : "domains";
 
     // Build topic buckets
-    const byBucket = {};       // bucketName -> { cases: Case[], firstCases: Case[] }
+    const byBucket = {};
     for (const c of cases) {
       const groups = c[groupKey];
       if (!groups.length) continue;
@@ -285,7 +307,6 @@
       });
     }
 
-    // For the topics/groups shown in the UI
     const useFirstOnly = state.filters.onlyOnce;
     const topics = Object.keys(byBucket).sort().map(name => {
       const list = useFirstOnly ? byBucket[name].firstCases : byBucket[name].cases;
@@ -314,19 +335,9 @@
      ========================================================= */
 
   function filteredTopics() {
-    let list = state.topics;
-    if (state.query) {
-      const q = state.query.toLowerCase();
-      list = list.filter(t => {
-        if (t.t.toLowerCase().includes(q)) return true;
-        // Also search case names/diagnoses so a search can find a case by name
-        return (state.casesByTopic[t.id] || []).some(c =>
-          (c.name || "").toLowerCase().includes(q) ||
-          (c.pc || "").toLowerCase().includes(q)
-        );
-      });
-    }
-    return list;
+    // All filtering now happens in recompute() — this wrapper is retained in
+    // case we reintroduce post-grouping filters later (e.g. hide empty buckets).
+    return state.topics;
   }
 
   /* =========================================================
@@ -361,12 +372,20 @@
   function render() {
     const mount = getMount();
     mount.className = "cx-root";
+
     mount.replaceChildren(
+      ensureLoginNotice(),
       renderHero(),
-      renderControls(),
+      ensureControls(),
       renderActiveFilters(),
       renderMain(),
     );
+
+    // Patch the cached control bar's "on" classes + filter count in place
+    updateControlsState();
+
+    // Initialise / sync Select2 on the themes selector (idempotent)
+    ensureSelect2();
 
     // Drawer: lives on document.body (fixed-position). Always remove the old
     // one first so we never stack multiple drawers after re-renders.
@@ -419,79 +438,237 @@
 
   /* ---------- Controls ---------- */
 
-  function renderControls() {
-    const activeFilterCount = Object.keys(DEFAULT_FILTERS)
-      .filter(k => state.filters[k] !== DEFAULT_FILTERS[k]).length;
+  // --- Cached control bar ---------------------------------------------------
+  // Built ONCE and reused across renders. Why: Select2 wraps the select
+  // element with its own sibling DOM. Rebuilding the control bar every render
+  // would tear that down and flicker. Instead we mutate specific bits in
+  // place via updateControlsState().
 
-    // Search
-    const searchInput = h("input", {
-      type: "text",
-      placeholder: "Search cases, topics, diagnoses…",
-      value: state.query,
-      onInput: debounce(e => { state.query = e.target.value; render(); }, 140),
-    });
+  let _controlsEl    = null;
+  let _themesSelect  = null;
+  let _filterBtnEl   = null;
+  let _kindSegEl     = null;
+  let _viewSegEl     = null;
+  let _select2Ready  = false;
+
+  function ensureControls() {
+    if (_controlsEl) return _controlsEl;
+
+    // ---- search (Select2 multi-select on Themes) ----
+    _themesSelect = document.createElement("select");
+    _themesSelect.id = "sca-themes-selector";
+    _themesSelect.setAttribute("multiple", "multiple");
+    _themesSelect.style.width = "100%";
+
     const searchBox = h("div", { class: "cx-search" },
-      (() => { const s = icon("search", 16); return s; })(),
-      searchInput,
-      state.query
-        ? h("button", {
-            class: "cx-search-clear",
-            onClick: () => { state.query = ""; render(); searchInput.focus(); },
-          }, "×")
-        : null,
+      icon("search", 16),
+      _themesSelect,
     );
 
-    // Filter button + popover
-    const filterBtn = h("button", {
-      class: "cx-filterbtn" + (activeFilterCount ? " on" : ""),
-      onClick: toggleFilterPop,
-    },
-      (() => { const s = icon("filter", 14); return s; })(),
+    // ---- filter button ----
+    _filterBtnEl = h("button", { class: "cx-filterbtn", onClick: toggleFilterPop },
+      icon("filter", 14),
       h("span", {}, "Filters"),
-      activeFilterCount ? h("span", { class: "cx-filterbtn-count" }, String(activeFilterCount)) : null,
+      h("span", { class: "cx-filterbtn-count", style: { display: "none" } }, ""),
     );
+    const filterWrap = h("div", { class: "cx-filterbtn-wrap" }, _filterBtnEl);
 
-    const filterWrap = h("div", { class: "cx-filterbtn-wrap" }, filterBtn);
+    // ---- kind segment (topic / experience) ----
+    _kindSegEl = h("div", { class: "cx-seg cx-seg-kind" });
+    const mkKindBtn = (k, label) => {
+      const b = h("button", { "data-kind": k }, label);
+      b.addEventListener("click", () => {
+        if (state.kind === k) return;
+        state.kind = k;
+        state.listOpen.clear();
+        updateControlsState();
+        recomputeAndRender();
+      });
+      return b;
+    };
+    _kindSegEl.appendChild(mkKindBtn("topic",      "Clinical topics"));
+    _kindSegEl.appendChild(mkKindBtn("experience", "Experience groups"));
 
-    // Kind switch (topic vs experience)
-    const kindSeg = h("div", { class: "cx-seg cx-seg-kind" },
-      h("button", {
-        class: state.kind === "topic" ? "on" : "",
-        onClick: () => { state.kind = "topic"; state.listOpen.clear(); recomputeAndRender(); },
-      }, "Clinical topics"),
-      h("button", {
-        class: state.kind === "experience" ? "on" : "",
-        onClick: () => { state.kind = "experience"; state.listOpen.clear(); recomputeAndRender(); },
-      }, "Experience groups"),
-    );
-
-    // View switcher (user-requested order: List → Grid → Priority)
+    // ---- view segment (List / Grid / Priority) ----
     const views = [
       { k: "list",     t: "List",     ic: "viewList" },
       { k: "grid",     t: "Grid",     ic: "viewGrid" },
       { k: "priority", t: "Priority", ic: "viewPrio" },
     ];
-    const viewSeg = h("div", { class: "cx-seg cx-seg-view" },
-      ...views.map(o => h("button", {
-        class: state.view === o.k ? "on" : "",
-        title: o.t,
-        "aria-label": o.t,
-        onClick: () => {
-          state.view = o.k;
-          try { localStorage.setItem("cx-view", o.k); } catch {}
-          if (o.k === "list") state.opened = null; // close drawer when entering list
-          render();
-        },
+    _viewSegEl = h("div", { class: "cx-seg cx-seg-view" });
+    for (const o of views) {
+      const b = h("button", {
+        "data-view": o.k, title: o.t, "aria-label": o.t,
       },
         icon(o.ic, 14),
         h("span", { class: "cx-seg-label" }, o.t),
-      )),
-    );
+      );
+      b.addEventListener("click", () => {
+        if (state.view === o.k) return;
+        state.view = o.k;
+        try { localStorage.setItem("cx-view", o.k); } catch {}
+        if (o.k === "list") state.opened = null;
+        updateControlsState();
+        render();
+      });
+      _viewSegEl.appendChild(b);
+    }
 
-    return h("section", { class: "cx-controls" }, searchBox, filterWrap, kindSeg, viewSeg);
+    _controlsEl = h("section", { class: "cx-controls" }, searchBox, filterWrap, _kindSegEl, _viewSegEl);
+    updateControlsState();
+    return _controlsEl;
+  }
+
+  function updateControlsState() {
+    if (!_controlsEl) return;
+
+    // filter button active count + "on" class
+    const active = Object.keys(DEFAULT_FILTERS).filter(k => state.filters[k] !== DEFAULT_FILTERS[k]).length;
+    _filterBtnEl.classList.toggle("on", active > 0);
+    const badge = _filterBtnEl.querySelector(".cx-filterbtn-count");
+    if (badge) {
+      badge.textContent = String(active);
+      badge.style.display = active > 0 ? "" : "none";
+    }
+
+    // kind segment
+    _kindSegEl.querySelectorAll("button").forEach(b => {
+      b.classList.toggle("on", b.dataset.kind === state.kind);
+    });
+
+    // view segment
+    _viewSegEl.querySelectorAll("button").forEach(b => {
+      b.classList.toggle("on", b.dataset.view === state.view);
+    });
+  }
+
+  // Initialise Select2 on the themes selector once jQuery + Select2 are ready
+  // and the select element is in the DOM. Populate options from state.allThemes.
+  // Called from render() on every paint — idempotent.
+  function ensureSelect2() {
+    if (!window.jQuery || !window.jQuery.fn?.select2) return;
+    if (!_themesSelect) return;
+    if (!document.contains(_themesSelect)) return;
+
+    const $sel = window.jQuery(_themesSelect);
+
+    if (!_select2Ready) {
+      $sel.select2({
+        placeholder:        "Start typing to search using key words",
+        allowClear:         true,
+        minimumInputLength: 1,
+        closeOnSelect:      true,
+        width:              "100%",
+      });
+      $sel.on("change", () => {
+        const vals = $sel.val() || [];
+        // Avoid infinite loops: only recompute if the set actually changed
+        const prev = state.selectedThemes.join("|");
+        const next = vals.join("|");
+        if (prev === next) return;
+        state.selectedThemes = vals.slice();
+        recomputeAndRender();
+      });
+      _select2Ready = true;
+    }
+
+    // Sync options to state.allThemes. Only rebuild if the list changed.
+    const currentOpts = Array.from(_themesSelect.options).map(o => o.value);
+    const need = state.allThemes;
+    const sameOpts = currentOpts.length === need.length && currentOpts.every((v, i) => v === need[i]);
+    if (!sameOpts) {
+      const selected = new Set(state.selectedThemes);
+      _themesSelect.innerHTML = "";
+      for (const t of need) {
+        const o = document.createElement("option");
+        o.value = t;
+        o.textContent = t;
+        if (selected.has(t)) o.selected = true;
+        _themesSelect.appendChild(o);
+      }
+      $sel.trigger("change.select2");
+    }
   }
 
   // Popover lives on document.body so render() doesn't destroy it mid-interaction
+  // --- Inline "log in again" notice ---------------------------------------
+  // Preserves the old HTML snippet's behaviour: shown when SCAAuth.getToken()
+  // resolves to null (no session), hidden when a token is present. Cached
+  // across renders so the state isn't reset on every paint.
+
+  let _loginNoticeEl = null;
+
+  function ensureLoginNotice() {
+    if (_loginNoticeEl) return _loginNoticeEl;
+
+    const link = h("span", {
+      id:       "scaInlineLoginLink",
+      role:     "button",
+      tabIndex: 0,
+      style:    { color: "#2563eb", fontWeight: 600, cursor: "pointer" },
+    }, "log in again");
+
+    const openLoginOverlay = (e) => {
+      if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      const selectors = [
+        "a.user-accounts-text-link",
+        "a.user-accounts-link",
+        "a[href='#'][class*='user-accounts']",
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) { el.click(); return; }
+      }
+      const all = document.querySelectorAll("header a, header button, nav a, nav button");
+      for (const el of all) {
+        const t = (el.textContent || "").trim().toLowerCase();
+        if (["account", "log in", "login", "sign in"].includes(t)) {
+          el.click();
+          return;
+        }
+      }
+      alert("Please use the Account / Log in button in the site header.");
+    };
+
+    link.addEventListener("click", openLoginOverlay);
+    link.addEventListener("keydown", openLoginOverlay);
+
+    _loginNoticeEl = h("p", {
+      id:    "scaInlineLoginNotice",
+      class: "cx-login-notice",
+      style: { margin: "10px 0 18px", fontSize: "14px", color: "#6c7485" },
+    },
+      "To display your progress data, please ",
+      link,
+      " to confirm your account.",
+    );
+
+    // Default: hidden until we know there's no session (prevents a flash of
+    // the notice on initial load while SCAAuth resolves).
+    _loginNoticeEl.hidden = true;
+
+    if (window.SCAAuth?.getToken) {
+      window.SCAAuth.getToken().then(token => {
+        _loginNoticeEl.hidden = !!token;
+      }).catch(() => { _loginNoticeEl.hidden = false; });
+    }
+
+    return _loginNoticeEl;
+  }
+
+  // Call whenever auth state might have changed (e.g. after a retry succeeds).
+  function refreshLoginNotice() {
+    if (!_loginNoticeEl || !window.SCAAuth?.getToken) return;
+    window.SCAAuth.getToken().then(token => {
+      _loginNoticeEl.hidden = !!token;
+    }).catch(() => { _loginNoticeEl.hidden = false; });
+  }
+
+  /* =========================================================
+     Filter popover
+     ========================================================= */
+
   function toggleFilterPop(e) {
     e.stopPropagation();
     const existing = document.getElementById("cx-filterpop");
@@ -920,6 +1097,8 @@
           window.SCAAuthUI.show(
             "To save your progress, please <b>log in again</b> to confirm your account."
           );
+          // Auth state may have shifted to "no token" — update inline notice
+          refreshLoginNotice();
         }
         console.warn("[SCA] Failed to save completion after retry:", err2 || err);
       }
