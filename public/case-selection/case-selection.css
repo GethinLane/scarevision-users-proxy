@@ -385,7 +385,7 @@
 .cx-root .cx-row-progress { display: flex; align-items: center; gap: 12px; }
 .cx-root .cx-row-track {
   flex: 1; height: 5px; border-radius: 999px;
-  background: var(--cx-paper-2); overflow: hidden; min-width: 120px;
+  background: #d6dde9; overflow: hidden; min-width: 120px;
 }
 .cx-root .cx-row.open .cx-row-track { background: rgba(255,255,255,0.15); }
 .cx-root .cx-row-track > span {
@@ -401,11 +401,36 @@
    tell a barely-started topic (light peri) from a nearly-done one (navy)
    without reading the count. The open-row override above wins (white on
    navy) when the row is expanded — these rules apply to collapsed rows. */
-.cx-root .cx-row:not(.open) .cx-row-track[data-progress="empty"]    > span { background: #c8d4e4; }
-.cx-root .cx-row:not(.open) .cx-row-track[data-progress="low"]      > span { background: #7DA8F0; }
-.cx-root .cx-row:not(.open) .cx-row-track[data-progress="mid"]      > span { background: #5d77a8; }
-.cx-root .cx-row:not(.open) .cx-row-track[data-progress="high"]     > span { background: #3a4968; }
-.cx-root .cx-row:not(.open) .cx-row-track[data-progress="complete"] > span { background: #253551; }
+/* Progress bar — continuous gradient across the track.
+   Key idea: the gradient (pale → peri → navy) is painted on the FILL span
+   at full track width, then the width of the fill clips how much is shown.
+   So at 10% you see only the first pale slice; at 50% you see up through
+   peri; at 100% you see the whole journey ending in deep navy.
+   We achieve "full track width gradient, only show 0→pct%" with
+   background-size: 100% of the TRACK (set via a CSS custom property set
+   on the track) + background-attachment semantics. Simpler alternative
+   used here: gradient is applied to the fill with a fixed background-size
+   pinned to the parent track's full width via `background-size: calc(...)`
+   driven by the fill's own width being narrower. Because the fill's
+   `width: N%` is of the track, setting `background-size: (100/N)*100%`
+   of the fill gives us a gradient scaled so that the fill shows only its
+   left-hand slice of the full spectrum. This is set as an inline style
+   from JS, so the CSS here just handles the shared bits. */
+.cx-root .cx-row:not(.open) .cx-row-track > span {
+  background-image: linear-gradient(90deg,
+    #c8d4e4 0%,
+    #d6dde9 10%,
+    #7DA8F0 40%,
+    #5d77a8 65%,
+    #3a4968 85%,
+    #253551 100%
+  );
+  background-repeat: no-repeat;
+  background-position: left center;
+  /* background-size is set inline from JS: e.g. "400% 100%" when pct=25%,
+     so the 0→25% slice of the full gradient aligns with the fill's visible
+     width. Falls back to plain gradient if JS doesn't set it. */
+}
 .cx-root .cx-row-count {
   font-family: "JetBrains Mono", monospace; font-size: 11px;
   color: var(--cx-muted); letter-spacing: 0.06em; white-space: nowrap;
@@ -692,7 +717,21 @@
   height: 3px; background: var(--cx-paper-2, #eef2f8); margin: 0;
   overflow: hidden;
 }
-.cx-drawer-bar > span { display: block; height: 100%; background: var(--cx-peri, #7DA8F0); }
+.cx-drawer-bar > span {
+  display: block; height: 100%;
+  background-image: linear-gradient(90deg,
+    #c8d4e4 0%,
+    #d6dde9 10%,
+    #7DA8F0 40%,
+    #5d77a8 65%,
+    #3a4968 85%,
+    #253551 100%
+  );
+  background-repeat: no-repeat;
+  background-position: left center;
+  /* background-size is set inline from progressBarFillStyle() so the
+     gradient represents the full track width regardless of fill width. */
+}
 .cx-drawer-cases {
   flex: 1; overflow-y: auto; padding: 0 0 24px;
   display: grid; grid-template-columns: 1fr 1fr; align-content: start;
