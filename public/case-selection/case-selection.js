@@ -373,13 +373,16 @@
     const mount = getMount();
     mount.className = "cx-root";
 
-    mount.replaceChildren(
+    // Content lives inside an inner shell so the .cx-root background extends
+    // full-bleed but the content stays constrained to the design max-width.
+    const shell = h("div", { class: "cx-shell" },
       ensureLoginNotice(),
       renderHero(),
       ensureControls(),
       renderActiveFilters(),
       renderMain(),
     );
+    mount.replaceChildren(shell);
 
     // Patch the cached control bar's "on" classes + filter count in place
     updateControlsState();
