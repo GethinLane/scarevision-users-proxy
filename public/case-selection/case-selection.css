@@ -643,3 +643,159 @@
   .cx-root .cx-row-cases { grid-template-columns: 1fr; }
   .cx-root .cx-prio { grid-template-columns: 1fr; }
 }
+
+/* =======================================================
+   Select2 overrides — theme the multi-select to match the
+   design's search-box look. Select2 renders its own wrapper
+   DOM (.select2-container) as a sibling of the native select;
+   these rules style that.
+   ======================================================= */
+.cx-root .cx-search {
+  /* Let Select2 grow to fill; override the old input-padding look */
+  padding: 4px 10px 4px 14px;
+  min-height: 44px;
+}
+.cx-root .cx-search .select2-container {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+}
+.cx-root .cx-search .select2-container--default .select2-selection--multiple {
+  border: 0;
+  background: transparent;
+  min-height: 36px;
+  padding: 0;
+}
+.cx-root .cx-search .select2-container--default.select2-container--focus
+  .select2-selection--multiple {
+  border: 0;
+}
+.cx-root .cx-search .select2-selection__rendered {
+  padding: 0 !important;
+  line-height: 1.4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.cx-root .cx-search .select2-selection__choice {
+  background: var(--cx-peri-soft) !important;
+  border: 1px solid rgba(125, 168, 240, 0.35) !important;
+  color: var(--cx-ink) !important;
+  border-radius: 999px !important;
+  padding: 3px 10px 3px 10px !important;
+  margin: 0 !important;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+}
+.cx-root .cx-search .select2-selection__choice__remove {
+  color: var(--cx-ink) !important;
+  margin-right: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  font-weight: 700 !important;
+  order: 2;
+  font-size: 14px;
+  line-height: 1;
+}
+.cx-root .cx-search .select2-selection__choice__remove:hover {
+  background: transparent !important;
+  color: var(--cx-ink) !important;
+  opacity: 0.7;
+}
+.cx-root .cx-search .select2-selection__choice__display {
+  padding: 0 !important;
+}
+.cx-root .cx-search .select2-search--inline {
+  margin: 0;
+}
+.cx-root .cx-search .select2-search__field {
+  font-family: inherit !important;
+  font-size: 14px !important;
+  color: var(--cx-ink) !important;
+  padding: 6px 2px !important;
+  margin-top: 0 !important;
+  min-width: 180px !important;
+  background: transparent !important;
+}
+.cx-root .cx-search .select2-search__field::placeholder {
+  color: var(--cx-muted);
+  font-style: normal;
+}
+.cx-root .cx-search .select2-selection__clear {
+  font-size: 18px;
+  color: var(--cx-muted);
+  margin-right: 4px;
+}
+
+/* Dropdown panel (rendered at body level by default) */
+.select2-container--default .select2-dropdown {
+  border: 1px solid var(--cx-rule, #d6dde9);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px -12px rgba(20,28,46,0.18);
+  overflow: hidden;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+}
+.select2-container--default .select2-results__option {
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--cx-ink, #253551);
+}
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+  background: var(--cx-ink, #253551) !important;
+  color: #fff !important;
+}
+.select2-container--default .select2-results__option[aria-selected=true] {
+  background: var(--cx-peri-soft, #e9f0fb);
+  color: var(--cx-ink, #253551);
+}
+.select2-search--dropdown .select2-search__field {
+  border: 1px solid var(--cx-rule, #d6dde9) !important;
+  border-radius: 8px;
+  padding: 8px 12px !important;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* =======================================================
+   Inline login notice
+   ======================================================= */
+.cx-root .cx-login-notice {
+  background: #fff;
+  border: 1px solid var(--cx-rule);
+  border-left: 3px solid #2563eb;
+  border-radius: 8px;
+  padding: 12px 16px !important;
+  margin: 0 0 4px !important;
+}
+.cx-root .cx-login-notice[hidden] { display: none !important; }
+.cx-root #scaInlineLoginLink:hover { text-decoration: underline; }
+
+/* =======================================================
+   Fixes after Select2 integration
+   ======================================================= */
+
+/* Prevent the kind-segment buttons from wrapping onto two lines */
+.cx-root .cx-seg button { white-space: nowrap; }
+
+/* On mobile the Select2 search field was forcing horizontal overflow.
+   Let it shrink. */
+@media (max-width: 860px) {
+  .cx-root .cx-search .select2-search__field {
+    min-width: 60px !important;
+    width: 100% !important;
+  }
+  .cx-root { overflow-x: hidden; }
+}
+
+/* Make the Select2 clear-all (×) button less visually competitive with the
+   per-chip × buttons; it's still there, just quieter. */
+.cx-root .cx-search .select2-selection__clear {
+  opacity: 0.5;
+  transition: opacity .15s;
+}
+.cx-root .cx-search .select2-selection__clear:hover { opacity: 1; }
