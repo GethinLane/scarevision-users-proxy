@@ -1095,11 +1095,11 @@
       va.addEventListener("click", (e) => e.stopPropagation());
 
       const vi = document.createElement("i");
-      // In FA6 Free, fa-video only exists in the solid style. The old site ran
-      // on FA Pro (fa-sharp fa-light) which is not guaranteed here. Using the
-      // universally available solid variant and handling hover emphasis via
-      // CSS color alone keeps this resilient across Free and Pro installs.
-      vi.className = "fa-solid fa-video cx-case-video-ic";
+      // Pro is loaded on this site. fa-light renders a thin outlined video
+      // camera (weight 300); the :hover CSS rule on .cx-case-video-ic bumps
+      // font-weight to 900 which maps to fa-solid — giving a clean light →
+      // solid transition without any JS class swap.
+      vi.className = "fa-light fa-video cx-case-video-ic";
       va.appendChild(vi);
       meta.appendChild(va);
     }
