@@ -889,6 +889,26 @@
     return renderListView(list);
   }
 
+  /* =========================================================
+     Progress-bar colour banding
+     =========================================================
+     Five bands based on completion %. The JS only decides WHICH
+     band — the hex values live in CSS so you can retune colours
+     without republishing the JS. Bands:
+       0%            → "empty"    (faintest peri-tint)
+       1–34%         → "low"      (peri)
+       35–69%        → "mid"      (steel-blue midpoint)
+       70–99%        → "high"     (navy)
+       100%          → "complete" (deep ink navy, matches open-row head)
+  */
+  function progressBandForPct(pct) {
+    if (pct >= 100) return "complete";
+    if (pct >= 70)  return "high";
+    if (pct >= 35)  return "mid";
+    if (pct > 0)    return "low";
+    return "empty";
+  }
+
   /* ---------- List view (default) ---------- */
 
   function renderListView(topics) {
@@ -904,7 +924,9 @@
         h("span", { class: "cx-row-chevron" }, isOpen ? "−" : "+"),
         h("span", { class: "cx-row-title" }, t.t),
         h("span", { class: "cx-row-progress" },
-          h("span", { class: "cx-row-track" }, h("span", { style: { width: pct + "%" } })),
+          h("span", { class: "cx-row-track", "data-progress": progressBandForPct(pct) },
+            h("span", { style: { width: pct + "%" } }),
+          ),
           h("span", { class: "cx-row-count", html: `<b>${t.d}</b>/${t.n}` }),
         ),
       );
