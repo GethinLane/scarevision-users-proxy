@@ -640,7 +640,7 @@
     _loginNoticeEl = h("p", {
       id:    "scaInlineLoginNotice",
       class: "cx-login-notice",
-      style: { margin: "10px 0 18px", fontSize: "14px", color: "#6c7485" },
+      style: { margin: "10px 0 18px", fontSize: "15px", color: "#6c7485" },
     },
       "To display your progress data, please ",
       link,
