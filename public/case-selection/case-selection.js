@@ -1,0 +1,951 @@
+/**
+ * sca-cases-list-remix.js
+ * =======================
+ * Replacement for sca-cases-list-for-sca-auth.js.
+ *
+ * Same public contract:
+ *   - Depends on SCAAuth  (window.SCAAuth)
+ *   - Depends on SCAProgress (window.SCAProgress)
+ *   - Fetches cases from https://scarevision-airtable-proxy.vercel.app/api/cases-list-data
+ *   - Writes completions via SCAProgress.setComplete
+ *   - Listens for cross-tab progress updates via BroadcastChannel / localStorage
+ *
+ * Differences:
+ *   - Renders the new "remix" UI (list / grid / priority views) into one mount
+ *     point (#sca-cases-remix) instead of the old accordion DOM.
+ *   - No jQuery / Select2 dependency.
+ *   - All CSS classes are prefixed `cx-` (matches sca-cases-list-remix.css).
+ *
+ * Mount point:
+ *   Place a single <div id="sca-cases-remix"></div> on the cases page.
+ *   If absent, the script auto-creates one inside the first <main> / <body>.
+ */
+
+(() => {
+  'use strict';
+
+  if (window.__scaCasesRemixLoaded) return;
+  window.__scaCasesRemixLoaded = true;
+
+  const PROXY_URL = "https://scarevision-airtable-proxy.vercel.app/api/cases-list-data";
+  const CACHE_KEY = "airtableData"; // reuse existing cache key so old bootscript stays warm
+
+  /* =========================================================
+     Tiny helpers
+     ========================================================= */
+
+  const h = (tag, attrs = {}, ...children) => {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === "html") el.innerHTML = v;
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v);
+    }
+    for (const child of children.flat()) {
+      if (child === null || child === undefined || child === false) continue;
+      el.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
+    }
+    return el;
+  };
+
+  const debounce = (fn, ms = 150) => {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  };
+
+  const safeJson = (raw) => { try { return raw ? JSON.parse(raw) : null; } catch { return null; } };
+
+  const asArray = (v) => {
+    if (Array.isArray(v)) return v.map(String).map(s => s.trim()).filter(Boolean);
+    if (typeof v === "string") return v.split(",").map(s => s.trim()).filter(Boolean);
+    return [];
+  };
+
+  const isAiSite = () => /(^|\.)scarevision\.ai$/i.test(window.location.hostname);
+
+  /* =========================================================
+     SVG icons (inline so no extra http)
+     ========================================================= */
+
+  const ICONS = {
+    search:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    shuffle:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
+    timer:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>',
+    filter:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>',
+    viewGrid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+    viewList: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
+    viewPrio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20v-6M12 20V10M20 20V4"/></svg>',
+    play:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>',
+    check:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-11"/></svg>',
+    arrow:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 5 7 7-7 7"/></svg>',
+  };
+
+  const icon = (name, size = 14) => {
+    const s = document.createElement('span');
+    s.className = 'cx-ico';
+    s.style.width = size + 'px';
+    s.style.height = size + 'px';
+    s.innerHTML = ICONS[name] || '';
+    return s;
+  };
+
+  /* =========================================================
+     State
+     ========================================================= */
+
+  const DEFAULT_FILTERS = {
+    diagnosis:  true,
+    onlyOnce:   false,
+    difficulty: true,
+    videoOnly:  false,
+    undone:     false,
+  };
+
+  const state = {
+    records:       [],
+    loading:       true,
+    progressReady: false,
+
+    // ui
+    view:     readInitialView(),
+    kind:     "topic",                    // "topic" | "experience"
+    query:    "",
+    filters:  { ...DEFAULT_FILTERS },
+    opened:   null,                       // topic id (drawer target, grid/priority views)
+    listOpen: new Set(),                  // list view: which topics are expanded
+
+    // derived (recomputed on state change)
+    topics:       [],
+    casesByTopic: {},
+  };
+
+  function readInitialView() {
+    const raw = localStorage.getItem("cx-view");
+    // Migrate deprecated values. User removed Index + Heatmap and made List the default.
+    if (raw === "list" || raw === "grid" || raw === "priority") return raw;
+    return "list";
+  }
+
+  function saveFiltersToUrl() {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      p.set("showDiagnosis", state.filters.diagnosis);
+      p.set("videoOnly", state.filters.videoOnly);
+      history.replaceState(null, "", "?" + p.toString());
+    } catch {}
+  }
+
+  /* =========================================================
+     Data load (stale-while-revalidate, mirrors old script)
+     ========================================================= */
+
+  function loadCases() {
+    const cached = safeJson(localStorage.getItem(CACHE_KEY));
+    if (cached && Array.isArray(cached.data) && cached.data.length) {
+      state.records = cached.data;
+      state.loading = false;
+      recomputeAndRender();
+    }
+    return fetch(PROXY_URL, { method: "GET" })
+      .then(r => r.json())
+      .then(data => {
+        const records = data?.records;
+        if (!Array.isArray(records)) throw new Error("Invalid cases payload");
+        const sig = sigOf(records);
+        const prevSig = cached?.sig || null;
+        if (sig !== prevSig) {
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), sig, data: records })); } catch {}
+          state.records = records;
+        }
+        state.loading = false;
+        recomputeAndRender();
+      })
+      .catch(() => {
+        state.loading = false;
+        recomputeAndRender();
+      });
+  }
+
+  function sigOf(records) {
+    try {
+      const n = records.length;
+      const f = records[0]?.id || "", m = records[Math.floor(n/2)]?.id || "", l = records[n-1]?.id || "";
+      const ai = records.filter(r => !!r.fields?.["AI Link"]).map(r => r.id).join(",");
+      return `${n}|${f}|${m}|${l}|${ai}`;
+    } catch { return String(Date.now()); }
+  }
+
+  /* =========================================================
+     Progress (via SCAProgress)
+     ========================================================= */
+
+  window.scaCompletedSet = window.scaCompletedSet || new Set();
+
+  function waitForSCAProgress(maxMs = 5000) {
+    return new Promise(resolve => {
+      if (window.SCAProgress?.getProgress) return resolve(true);
+      const start = Date.now();
+      const t = setInterval(() => {
+        if (window.SCAProgress?.getProgress) { clearInterval(t); resolve(true); return; }
+        if (Date.now() - start > maxMs)     { clearInterval(t); resolve(false); }
+      }, 100);
+    });
+  }
+
+  async function loadProgress() {
+    const ok = await waitForSCAProgress();
+    if (!ok) { state.progressReady = true; recomputeAndRender(); return; }
+    try {
+      const progress = await window.SCAProgress.getProgress();
+      window.scaCompletedSet = new Set((progress?.completed || []).map(String));
+    } catch {}
+    state.progressReady = true;
+    recomputeAndRender();
+  }
+
+  async function refreshProgressAfterChange() {
+    if (!window.SCAProgress?.getProgress) return;
+    try {
+      const progress = await window.SCAProgress.getProgress();
+      window.scaCompletedSet = new Set((progress?.completed || []).map(String));
+      recomputeAndRender();
+    } catch {}
+  }
+
+  // Cross-tab sync (same channel as old script, so both live side-by-side)
+  const progressChannel = "BroadcastChannel" in window
+    ? new BroadcastChannel("sca-progress")
+    : null;
+  if (progressChannel) {
+    progressChannel.onmessage = e => {
+      if (e?.data?.type === "progress-updated") refreshProgressAfterChange();
+    };
+  }
+  window.addEventListener("storage", e => {
+    if (e.key === "sca-progress-updated") refreshProgressAfterChange();
+  });
+  window.addEventListener("focus",    refreshProgressAfterChange);
+  window.addEventListener("pageshow", refreshProgressAfterChange);
+
+  /* =========================================================
+     Data normalisation — records → { topics, casesByTopic }
+     ========================================================= */
+
+  function recompute() {
+    const records = state.records;
+    const onAi    = isAiSite();
+    const linkField = onAi
+      ? "AI Link"
+      : (state.filters.diagnosis ? "Link" : "Link-nt");
+
+    // Filter out AI-only records on non-AI sites if needed (match old behaviour).
+    const visible = records.filter(r => {
+      if (onAi && !r.fields?.["AI Link"]) return false;
+      if (state.filters.videoOnly && !r.fields?.["Video Link"]) return false;
+      return true;
+    });
+
+    // Build flat case objects
+    const cases = visible.map(r => {
+      const f = r.fields || {};
+      const caseIdRaw = f["Case ID"] ?? f["CaseID"] ?? f["Case Number"] ?? f["Case"];
+      const caseId = Number(String(caseIdRaw ?? "").trim());
+      const cid = Number.isFinite(caseId) ? caseId : null;
+
+      return {
+        id:        cid,
+        airId:     r.id,
+        name:      String(f["Name"] || "").trim(),
+        pc:        String(f["Presenting Complaint"] || "").trim(),
+        link:      f[linkField] || f["Link"] || "#",
+        videoLink: f["Video Link"] || null,
+        difficulty: Math.max(0, Math.min(3, parseInt(f["Difficulty"] || "0", 10) || 0)),
+        topics:    asArray(f["Clinical Topics"]),
+        domains:   asArray(f["Domain"] || f["Themes"]),
+        done:      cid != null && window.scaCompletedSet.has(String(cid)),
+      };
+    });
+
+    // Decide which key to group by
+    const groupKey = state.kind === "topic" ? "topics" : "domains";
+
+    // Build topic buckets
+    const byBucket = {};       // bucketName -> { cases: Case[], firstCases: Case[] }
+    for (const c of cases) {
+      const groups = c[groupKey];
+      if (!groups.length) continue;
+      groups.forEach((g, i) => {
+        if (!byBucket[g]) byBucket[g] = { cases: [], firstCases: [] };
+        byBucket[g].cases.push(c);
+        if (i === 0) byBucket[g].firstCases.push(c);
+      });
+    }
+
+    // For the topics/groups shown in the UI
+    const useFirstOnly = state.filters.onlyOnce;
+    const topics = Object.keys(byBucket).sort().map(name => {
+      const list = useFirstOnly ? byBucket[name].firstCases : byBucket[name].cases;
+      const done = list.filter(c => c.done).length;
+      return {
+        id:   name,
+        t:    name,
+        n:    list.length,
+        d:    done,
+        kind: state.kind,
+        _cases: list,
+      };
+    }).filter(t => t.n > 0);
+
+    const casesByTopic = {};
+    for (const t of topics) casesByTopic[t.id] = t._cases;
+
+    state.topics = topics;
+    state.casesByTopic = casesByTopic;
+    state.totalUniqueCases = cases.length;
+    state.totalUniqueDone  = cases.filter(c => c.done).length;
+  }
+
+  /* =========================================================
+     Filtering for the current search query
+     ========================================================= */
+
+  function filteredTopics() {
+    let list = state.topics;
+    if (state.query) {
+      const q = state.query.toLowerCase();
+      list = list.filter(t => {
+        if (t.t.toLowerCase().includes(q)) return true;
+        // Also search case names/diagnoses so a search can find a case by name
+        return (state.casesByTopic[t.id] || []).some(c =>
+          (c.name || "").toLowerCase().includes(q) ||
+          (c.pc || "").toLowerCase().includes(q)
+        );
+      });
+    }
+    return list;
+  }
+
+  /* =========================================================
+     Render pipeline
+     ========================================================= */
+
+  let mountEl = null;
+
+  function getMount() {
+    if (mountEl) return mountEl;
+    mountEl = document.getElementById("sca-cases-remix");
+    if (!mountEl) {
+      // Fallback: create next to whatever the existing page had
+      const old = document.getElementById("caseList") || document.querySelector("main") || document.body;
+      mountEl = document.createElement("div");
+      mountEl.id = "sca-cases-remix";
+      if (old && old !== document.body && old.parentNode) {
+        old.parentNode.insertBefore(mountEl, old);
+        old.style.display = "none"; // hide old UI if present
+      } else {
+        document.body.appendChild(mountEl);
+      }
+    }
+    return mountEl;
+  }
+
+  function recomputeAndRender() {
+    recompute();
+    render();
+  }
+
+  function render() {
+    const mount = getMount();
+    mount.className = "cx-root";
+    mount.replaceChildren(
+      renderHero(),
+      renderControls(),
+      renderActiveFilters(),
+      renderMain(),
+    );
+
+    // Drawer: lives on document.body (fixed-position). Always remove the old
+    // one first so we never stack multiple drawers after re-renders.
+    document.querySelectorAll(".cx-drawer-wrap").forEach(el => el.remove());
+    if (state.opened && state.view !== "list") {
+      document.body.appendChild(renderDrawer());
+    }
+  }
+
+  /* ---------- Hero ---------- */
+
+  function renderHero() {
+    const kindLabel = state.kind === "topic" ? "clinical topics" : "experience groups";
+    const total     = state.totalUniqueCases || 0;
+    const done      = state.totalUniqueDone || 0;
+    const topicsN   = state.topics.length;
+    const pct       = total ? Math.round((done / total) * 100) : 0;
+
+    return h("section", { class: "cx-hero" },
+      h("div", { class: "cx-hero-left" },
+        h("div", { class: "cx-eyebrow" }, "Cases"),
+        h("h1", {},
+          "Browse cases. ",
+          h("span", { class: "cx-hero-accent" }, "Find what you need."),
+        ),
+        h("p", { class: "cx-hero-sub", html:
+          `<b>${total}</b> cases &middot; <b>${topicsN}</b> ${kindLabel} &middot; <b>${pct}%</b> complete`
+        }),
+      ),
+      h("div", { class: "cx-hero-right" },
+        h("a", { href: "#", class: "cx-btn cx-btn-primary", onClick: onRandomCase },
+          icon("shuffle", 14), h("span", {}, "Random case"),
+        ),
+      ),
+    );
+  }
+
+  function onRandomCase(e) {
+    e.preventDefault();
+    const all = [];
+    for (const t of state.topics) {
+      for (const c of (state.casesByTopic[t.id] || [])) {
+        if (!state.filters.undone || !c.done) all.push(c);
+      }
+    }
+    if (!all.length) return;
+    const pick = all[Math.floor(Math.random() * all.length)];
+    if (pick?.link && pick.link !== "#") window.open(pick.link, "_blank", "noopener");
+  }
+
+  /* ---------- Controls ---------- */
+
+  function renderControls() {
+    const activeFilterCount = Object.keys(DEFAULT_FILTERS)
+      .filter(k => state.filters[k] !== DEFAULT_FILTERS[k]).length;
+
+    // Search
+    const searchInput = h("input", {
+      type: "text",
+      placeholder: "Search cases, topics, diagnoses…",
+      value: state.query,
+      onInput: debounce(e => { state.query = e.target.value; render(); }, 140),
+    });
+    const searchBox = h("div", { class: "cx-search" },
+      (() => { const s = icon("search", 16); return s; })(),
+      searchInput,
+      state.query
+        ? h("button", {
+            class: "cx-search-clear",
+            onClick: () => { state.query = ""; render(); searchInput.focus(); },
+          }, "×")
+        : null,
+    );
+
+    // Filter button + popover
+    const filterBtn = h("button", {
+      class: "cx-filterbtn" + (activeFilterCount ? " on" : ""),
+      onClick: toggleFilterPop,
+    },
+      (() => { const s = icon("filter", 14); return s; })(),
+      h("span", {}, "Filters"),
+      activeFilterCount ? h("span", { class: "cx-filterbtn-count" }, String(activeFilterCount)) : null,
+    );
+
+    const filterWrap = h("div", { class: "cx-filterbtn-wrap" }, filterBtn);
+
+    // Kind switch (topic vs experience)
+    const kindSeg = h("div", { class: "cx-seg cx-seg-kind" },
+      h("button", {
+        class: state.kind === "topic" ? "on" : "",
+        onClick: () => { state.kind = "topic"; state.listOpen.clear(); recomputeAndRender(); },
+      }, "Clinical topics"),
+      h("button", {
+        class: state.kind === "experience" ? "on" : "",
+        onClick: () => { state.kind = "experience"; state.listOpen.clear(); recomputeAndRender(); },
+      }, "Experience groups"),
+    );
+
+    // View switcher (user-requested order: List → Grid → Priority)
+    const views = [
+      { k: "list",     t: "List",     ic: "viewList" },
+      { k: "grid",     t: "Grid",     ic: "viewGrid" },
+      { k: "priority", t: "Priority", ic: "viewPrio" },
+    ];
+    const viewSeg = h("div", { class: "cx-seg cx-seg-view" },
+      ...views.map(o => h("button", {
+        class: state.view === o.k ? "on" : "",
+        title: o.t,
+        "aria-label": o.t,
+        onClick: () => {
+          state.view = o.k;
+          try { localStorage.setItem("cx-view", o.k); } catch {}
+          if (o.k === "list") state.opened = null; // close drawer when entering list
+          render();
+        },
+      },
+        icon(o.ic, 14),
+        h("span", { class: "cx-seg-label" }, o.t),
+      )),
+    );
+
+    return h("section", { class: "cx-controls" }, searchBox, filterWrap, kindSeg, viewSeg);
+  }
+
+  // Popover lives on document.body so render() doesn't destroy it mid-interaction
+  function toggleFilterPop(e) {
+    e.stopPropagation();
+    const existing = document.getElementById("cx-filterpop");
+    if (existing) { closePop(existing); return; }
+
+    const btn = e.currentTarget;
+    const pop = buildFilterPop();
+    pop.style.position = "fixed";
+    pop.style.zIndex = "60";
+    document.body.appendChild(pop);
+    positionPop(pop, btn);
+
+    const onResize = () => positionPop(pop, btn);
+    const closer = (ev) => {
+      if (pop.contains(ev.target)) return;
+      if (btn.contains && btn.contains(ev.target)) return;
+      closePop(pop);
+    };
+    const escCloser = (ev) => { if (ev.key === "Escape") closePop(pop); };
+
+    function closePop(p) {
+      try { p.remove(); } catch {}
+      document.removeEventListener("mousedown", closer);
+      document.removeEventListener("keydown", escCloser);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onResize, true);
+    }
+
+    setTimeout(() => {
+      document.addEventListener("mousedown", closer);
+      document.addEventListener("keydown", escCloser);
+      window.addEventListener("resize", onResize);
+      window.addEventListener("scroll", onResize, true);
+    }, 0);
+  }
+
+  function positionPop(pop, btn) {
+    const r = btn.getBoundingClientRect();
+    const popWidth = 320;
+    const margin = 8;
+    // Try to align right-edge with button; clamp to viewport
+    let right = Math.max(margin, window.innerWidth - r.right);
+    if (right + popWidth > window.innerWidth - margin) right = margin;
+    pop.style.top = (r.bottom + margin) + "px";
+    pop.style.right = right + "px";
+    pop.style.left = "auto";
+  }
+
+  function buildFilterPop() {
+    const rows = [
+      { k: "diagnosis",  label: "Show diagnosis",  hint: "Reveal each case's diagnosis" },
+      { k: "difficulty", label: "Show difficulty", hint: "Display the 1–3 ★ rating" },
+      { k: "videoOnly",  label: "Video only",      hint: "Only cases with a video" },
+      { k: "undone",     label: "Not done yet",    hint: "Hide cases you've completed" },
+      { k: "onlyOnce",   label: "Each case once",  hint: "Don't repeat cases across topics" },
+    ];
+
+    const activeCount = () => Object.keys(DEFAULT_FILTERS)
+      .filter(k => state.filters[k] !== DEFAULT_FILTERS[k]).length;
+
+    const head = h("div", { class: "cx-filterpop-head" }, h("span", {}, "Filter cases"));
+    const resetBtn = h("button", {
+      class: "cx-filterpop-reset",
+      onClick: () => {
+        state.filters = { ...DEFAULT_FILTERS };
+        saveFiltersToUrl();
+        recomputeAndRender();
+        refreshPopInternals();
+      },
+    }, "Reset all");
+
+    if (activeCount()) head.appendChild(resetBtn);
+
+    const rowsWrap = h("div", { class: "cx-filterpop-rows" });
+
+    for (const r of rows) {
+      const sw = h("button", {
+        class: "cx-switch" + (state.filters[r.k] ? " on" : ""),
+        "aria-pressed": !!state.filters[r.k],
+      }, h("span", {}));
+      const row = h("label", { class: "cx-filterrow" },
+        h("div", {},
+          h("div", { class: "cx-filterrow-label" }, r.label),
+          h("div", { class: "cx-filterrow-hint" }, r.hint),
+        ),
+        sw,
+      );
+      sw.dataset.filterKey = r.k;
+      sw.addEventListener("click", (e) => {
+        e.preventDefault();
+        state.filters[r.k] = !state.filters[r.k];
+        sw.classList.toggle("on", state.filters[r.k]);
+        sw.setAttribute("aria-pressed", String(!!state.filters[r.k]));
+        saveFiltersToUrl();
+        recomputeAndRender();           // the pop survives — it's in document.body
+        refreshPopInternals();
+      });
+      rowsWrap.appendChild(row);
+    }
+
+    const pop = h("div", { id: "cx-filterpop", class: "cx-filterpop" }, head, rowsWrap);
+
+    function refreshPopInternals() {
+      // Toggle the reset button presence without rebuilding the pop
+      const hasReset = head.contains(resetBtn);
+      if (activeCount() && !hasReset) head.appendChild(resetBtn);
+      if (!activeCount() && hasReset) resetBtn.remove();
+      // Sync switch classes from state (covers the "reset all" case)
+      pop.querySelectorAll(".cx-switch").forEach(swEl => {
+        const k = swEl.dataset.filterKey;
+        if (!k) return;
+        const on = !!state.filters[k];
+        swEl.classList.toggle("on", on);
+        swEl.setAttribute("aria-pressed", String(on));
+      });
+    }
+
+    return pop;
+  }
+
+  /* ---------- Active filter chip strip ---------- */
+
+  function renderActiveFilters() {
+    const chips = [];
+
+    if (state.filters.diagnosis !== true) chips.push(chip("Diagnosis hidden", () => { state.filters.diagnosis = true; recomputeAndRender(); }));
+    if (state.filters.difficulty !== true) chips.push(chip("Difficulty hidden", () => { state.filters.difficulty = true; render(); }));
+    if (state.filters.videoOnly) chips.push(chip("Video only", () => { state.filters.videoOnly = false; recomputeAndRender(); }));
+    if (state.filters.undone) chips.push(chip("Not done yet", () => { state.filters.undone = false; render(); }));
+    if (state.filters.onlyOnce) chips.push(chip("Each case once", () => { state.filters.onlyOnce = false; recomputeAndRender(); }));
+
+    const count = filteredTopics().length;
+    const noun = state.kind === "topic" ? "topics" : "groups";
+
+    return h("section", { class: "cx-activefilters" },
+      h("div", { class: "cx-activefilters-left" },
+        chips.length
+          ? chips
+          : h("span", { class: "cx-activefilters-none" }, "No filters applied"),
+      ),
+      h("span", { class: "cx-activefilters-count", html: `<b>${count}</b> ${noun}` }),
+    );
+  }
+
+  function chip(label, onRemove) {
+    return h("button", { class: "cx-chip", onClick: onRemove },
+      label, " ", h("span", {}, "×"),
+    );
+  }
+
+  /* ---------- Main content by view ---------- */
+
+  function renderMain() {
+    if (state.loading && !state.records.length) {
+      return h("div", { class: "cx-loading" }, "Loading cases…");
+    }
+    const list = filteredTopics();
+    if (!list.length) {
+      return h("div", { class: "cx-empty" },
+        h("strong", {}, "No topics match."),
+        h("div", {}, "Try clearing the search or changing filters."),
+      );
+    }
+    if (state.view === "list")     return renderListView(list);
+    if (state.view === "grid")     return renderGridView(list);
+    if (state.view === "priority") return renderPriorityView(list);
+    return renderListView(list);
+  }
+
+  /* ---------- List view (default) ---------- */
+
+  function renderListView(topics) {
+    const wrap = h("section", { class: "cx-list" });
+    for (const t of topics) {
+      const isOpen = state.listOpen.has(t.id);
+      const pct = t.n ? Math.round((t.d / t.n) * 100) : 0;
+
+      const head = h("button", { class: "cx-row-head", onClick: () => {
+        if (isOpen) state.listOpen.delete(t.id); else state.listOpen.add(t.id);
+        render();
+      }},
+        h("span", { class: "cx-row-chevron" }, isOpen ? "−" : "+"),
+        h("span", { class: "cx-row-title" }, t.t),
+        h("span", { class: "cx-row-progress" },
+          h("span", { class: "cx-row-track" }, h("span", { style: { width: pct + "%" } })),
+          h("span", { class: "cx-row-count", html: `<b>${t.d}</b>/${t.n}` }),
+        ),
+      );
+
+      const row = h("div", { class: "cx-row" + (isOpen ? " open" : "") }, head);
+
+      if (isOpen) {
+        const cases = state.casesByTopic[t.id] || [];
+        row.appendChild(h("div", { class: "cx-row-cases" },
+          ...cases.map(caseEntry),
+        ));
+      }
+      wrap.appendChild(row);
+    }
+    return wrap;
+  }
+
+  /* ---------- Grid view ---------- */
+
+  function renderGridView(topics) {
+    const wrap = h("section", { class: "cx-grid" });
+    for (const t of topics) {
+      const pct = t.n ? Math.round((t.d / t.n) * 100) : 0;
+      const remaining = t.n - t.d;
+      const r = 22, c = 2 * Math.PI * r;
+      const dash = (pct / 100) * c;
+
+      const card = h("button", {
+        class: "cx-card",
+        onClick: () => { state.opened = t.id; render(); },
+      },
+        h("div", { class: "cx-card-top" },
+          // SVG ring via innerHTML for simplicity
+          h("div", { class: "cx-card-ring", html:
+            `<svg width="60" height="60" viewBox="0 0 60 60">
+               <circle cx="30" cy="30" r="${r}" fill="none" stroke="var(--paper-3)" stroke-width="4"/>
+               <circle cx="30" cy="30" r="${r}" fill="none" stroke="var(--peri)" stroke-width="4"
+                 stroke-dasharray="${dash} ${c}" stroke-linecap="round" transform="rotate(-90 30 30)"/>
+             </svg>
+             <span>${pct}%</span>`
+          }),
+          h("span", {
+            class: "cx-card-status " +
+              (t.d === t.n ? "complete" : t.d === 0 ? "empty" : "partial"),
+          }, t.d === t.n ? "Complete" : t.d === 0 ? "Not started" : `${remaining} to go`),
+        ),
+        h("h3", { class: "cx-card-title" }, t.t),
+        h("div", { class: "cx-card-meta" },
+          h("span", { html: `<b>${t.d}</b>/${t.n} cases` }),
+          h("span", { class: "cx-card-go" },
+            "Open ",
+            icon("arrow", 12),
+          ),
+        ),
+      );
+      wrap.appendChild(card);
+    }
+    return wrap;
+  }
+
+  /* ---------- Priority view ---------- */
+
+  function renderPriorityView(topics) {
+    const b = { next: [], progress: [], nearly: [], mastered: [] };
+    topics.forEach(t => {
+      const pct = t.n ? (t.d / t.n) * 100 : 0;
+      if (pct === 0)        b.next.push(t);
+      else if (pct >= 100)  b.mastered.push(t);
+      else if (pct >= 70)   b.nearly.push(t);
+      else                  b.progress.push(t);
+    });
+
+    const cols = [
+      { key: "next",     t: "Start next",   sub: "Untouched topics — a fresh place to begin", tone: "peri", items: b.next },
+      { key: "progress", t: "Keep going",   sub: "Partially complete — build momentum",       tone: "ink",  items: b.progress },
+      { key: "nearly",   t: "Nearly there", sub: "Less than 30% of cases left",                tone: "soft", items: b.nearly },
+      { key: "mastered", t: "Mastered",     sub: "100% — revisit any case anytime",            tone: "done", items: b.mastered },
+    ];
+
+    const wrap = h("section", { class: "cx-prio" });
+    for (const col of cols) {
+      const colEl = h("div", { class: `cx-prio-col cx-prio-${col.tone}` },
+        h("header", { class: "cx-prio-head" },
+          h("div", {},
+            h("h3", {}, col.t),
+            h("p", {}, col.sub),
+          ),
+          h("span", { class: "cx-prio-n" }, String(col.items.length)),
+        ),
+        h("div", { class: "cx-prio-items" },
+          ...(col.items.length
+            ? col.items.map(t => {
+                const pct = t.n ? Math.round((t.d / t.n) * 100) : 0;
+                return h("button", {
+                  class: "cx-prio-item",
+                  onClick: () => { state.opened = t.id; render(); },
+                },
+                  h("h4", {}, t.t),
+                  h("div", { class: "cx-prio-line" },
+                    h("span", { style: { width: pct + "%" } }),
+                  ),
+                  h("div", { class: "cx-prio-meta" },
+                    h("span", { html: `<b>${t.d}</b>/${t.n}` }),
+                    h("span", { class: "cx-prio-pct" }, pct + "%"),
+                  ),
+                );
+              })
+            : [h("div", { class: "cx-prio-empty" }, "Nothing here yet")]),
+        ),
+      );
+      wrap.appendChild(colEl);
+    }
+    return wrap;
+  }
+
+  /* ---------- Drawer (grid/priority only) ---------- */
+
+  function renderDrawer() {
+    const topic = state.topics.find(t => t.id === state.opened);
+    if (!topic) return document.createTextNode("");
+    const cases = state.casesByTopic[topic.id] || [];
+    const pct = topic.n ? Math.round((topic.d / topic.n) * 100) : 0;
+
+    const close = () => { state.opened = null; render(); };
+
+    const wrap = h("div", { class: "cx-drawer-wrap", onClick: close });
+    const aside = h("aside", { class: "cx-drawer", onClick: (e) => e.stopPropagation() },
+      h("header", { class: "cx-drawer-head" },
+        h("div", {},
+          h("span", { class: "cx-eyebrow" }, topic.kind === "topic" ? "Clinical topic" : "Experience group"),
+          h("h2", {}, topic.t),
+          h("p", {}, `${topic.d} of ${topic.n} cases done · ${pct}%`),
+        ),
+        h("button", { class: "cx-drawer-close", onClick: close, "aria-label": "Close" }, "×"),
+      ),
+      h("div", { class: "cx-drawer-bar" }, h("span", { style: { width: pct + "%" } })),
+      h("div", { class: "cx-drawer-cases" },
+        ...cases.map(caseEntry),
+      ),
+    );
+    wrap.appendChild(aside);
+
+    // Escape to close
+    const onKey = (e) => { if (e.key === "Escape") { close(); document.removeEventListener("keydown", onKey); } };
+    document.addEventListener("keydown", onKey);
+
+    return wrap;
+  }
+
+  /* ---------- Case row (shared by list & drawer) ---------- */
+
+  function caseEntry(c) {
+    if (state.filters.videoOnly && !c.videoLink) return null;
+    if (state.filters.undone && c.done) return null;
+
+    const title = state.filters.diagnosis
+      ? (c.name || c.pc)
+      : (c.pc || c.name);
+    const diagLine = state.filters.diagnosis && c.pc ? c.pc : null;
+
+    const checkbox = h("span", {
+      class: "cx-case-check" + (c.done ? " done" : ""),
+      role: "checkbox",
+      tabIndex: 0,
+      "aria-checked": !!c.done,
+      "data-case-id": c.id != null ? String(c.id) : "",
+      title: c.done ? "Mark as not done" : "Mark as done",
+      html: c.done ? ICONS.check : "",
+    });
+    checkbox.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleCaseDone(c); });
+    checkbox.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCaseDone(c); } });
+
+    const meta = h("span", { class: "cx-case-meta" },
+      c.videoLink
+        ? h("a", {
+            href: c.videoLink, target: "_blank", rel: "noopener",
+            class: "cx-case-icon", title: "Video", onClick: (e) => e.stopPropagation(),
+          }, icon("play", 12))
+        : null,
+      state.filters.difficulty
+        ? h("span", { class: "cx-case-diff" },
+            ...[1,2,3].map(i => h("span", { class: i <= c.difficulty ? "on" : "" }, "★")),
+          )
+        : null,
+    );
+
+    return h("a", {
+      href:  c.link || "#",
+      target: c.link && c.link !== "#" ? "_blank" : null,
+      rel:   c.link && c.link !== "#" ? "noopener" : null,
+      class: "cx-case" + (c.done ? " done" : ""),
+      "data-case-id": c.id != null ? String(c.id) : "",
+    },
+      checkbox,
+      h("span", { class: "cx-case-body" },
+        h("span", { class: "cx-case-title" }, title || "(untitled)"),
+        diagLine ? h("span", { class: "cx-case-diag" }, diagLine) : null,
+      ),
+      meta,
+    );
+  }
+
+  /* =========================================================
+     Completion toggle (same pattern as old script, but self-contained)
+     ========================================================= */
+
+  async function toggleCaseDone(c) {
+    if (c.id == null) return;
+    if (!window.SCAProgress?.setComplete) return;
+
+    const wasDone = !!c.done;
+    const key = String(c.id);
+
+    // Optimistic: flip state and re-render once. State holds the truth; the
+    // render function is our single source of UI updates.
+    window.scaCompletedSet?.[wasDone ? "delete" : "add"](key);
+    recomputeAndRender();
+
+    const rollback = () => {
+      window.scaCompletedSet?.[wasDone ? "add" : "delete"](key);
+      recomputeAndRender();
+    };
+
+    const attempt = async () => {
+      await window.SCAProgress.setComplete(c.id, !wasDone);
+      try { localStorage.setItem("sca-progress-updated", String(Date.now())); } catch {}
+      try { progressChannel?.postMessage?.({ type: "progress-updated" }); } catch {}
+    };
+
+    try {
+      await attempt();
+    } catch (err) {
+      // One retry after refreshing the token
+      try {
+        await window.SCAAuth?.getToken();
+        await attempt();
+      } catch (err2) {
+        rollback();
+        const eMsg = err2 || err;
+        if (window.SCAAuthUI?.isAuthError?.(eMsg)) {
+          window.SCAAuthUI.show(
+            "To save your progress, please <b>log in again</b> to confirm your account."
+          );
+        }
+        console.warn("[SCA] Failed to save completion after retry:", err2 || err);
+      }
+    }
+  }
+
+  /* =========================================================
+     Boot
+     ========================================================= */
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    try {
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+      window.scrollTo(0, 0);
+    } catch {}
+
+    // Hide legacy widgets on the same page (if the old DOM still lives here)
+    ["caseList", "themesSelector", "toggleDisplayType", "toggleFirstOnly", "toggleDifficultyRating", "toggleVideoOnly", "btnClinicalTopic", "btnDomain"]
+      .forEach(id => { const el = document.getElementById(id); if (el) el.closest("form, section, div")?.style.setProperty("display","none"); });
+
+    getMount(); // ensure mount exists
+    render();   // first paint (loading state)
+
+    // Kick off both in parallel
+    loadProgress();
+    loadCases();
+  });
+
+})();
