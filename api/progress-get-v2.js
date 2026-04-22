@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { kvRead, kvWrite } from "../lib/progress-kv.js";
 
 const ALLOWED_ORIGINS = ["https://www.scarevision.co.uk", "https://scarevision.co.uk"];
 
@@ -8,7 +9,6 @@ function setCors(req, res) {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  // ✅ Allow Authorization for Bearer tokens
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
 }
@@ -45,11 +45,9 @@ function safeEqual(a, b) {
   }
 }
 
-// ✅ NEW: read token from Authorization Bearer first, cookie second
 function readSessionToken(req) {
   const auth = req.headers.authorization || "";
   if (auth.startsWith("Bearer ")) return auth.slice(7).trim();
-
   const cookies = parseCookies(req);
   return cookies["sca_session"] || "";
 }
@@ -113,7 +111,6 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   return data;
 }
 
-// REPLACE with:
 function safeParseList(s) {
   try {
     const v = JSON.parse(s || "[]");
@@ -126,9 +123,7 @@ function safeParseList(s) {
 function safeParseCompleted(s) {
   try {
     const v = JSON.parse(s || "{}");
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      return v;
-    }
+    if (v && typeof v === "object" && !Array.isArray(v)) return v;
     if (Array.isArray(v)) {
       const map = {};
       for (const id of v) {
@@ -155,12 +150,27 @@ export default async function handler(req, res) {
     setCors(req, res);
     return res.status(204).end();
   }
-
   if (req.method !== "POST") return send(req, res, 405, { ok: false, error: "Use POST" });
 
   try {
     const userId = verifySession(req);
 
+    // ================================================================
+    // FAST PATH: try Upstash first
+    // ================================================================
+    const cached = await kvRead(userId);
+    if (cached) {
+      return send(req, res, 200, {
+        ok: true,
+        flagged: cached.flagged,
+        completed: cached.completed,
+        completedDates: cached.completedDates || {},
+      });
+    }
+
+    // ================================================================
+    // SLOW PATH: cache miss → read from Airtable, then seed the cache
+    // ================================================================
     const token = process.env.AIRTABLE_USERS_TOKEN;
     const baseId = process.env.AIRTABLE_USERS_BASE_ID;
     const table = process.env.AIRTABLE_USERS_TABLE;
@@ -180,17 +190,25 @@ export default async function handler(req, res) {
       return send(req, res, 404, { ok: false, error: "User not found in Airtable yet" });
     }
 
-// REPLACE with:
-const record = found.records[0];
-const flagged      = safeParseList(record.fields?.FlaggedCasesJson);
-const completedMap = safeParseCompleted(record.fields?.CompletedCasesJson);
+    const record = found.records[0];
+    const flagged = safeParseList(record.fields?.FlaggedCasesJson);
+    const completedMap = safeParseCompleted(record.fields?.CompletedCasesJson);
+    const completed = completedMapToArray(completedMap);
 
-return send(req, res, 200, {
-  ok:             true,
-  flagged,
-  completed:      completedMapToArray(completedMap),
-  completedDates: completedMap,
-});
+    // Seed the cache so the next request is fast
+    await kvWrite(userId, {
+      recordId: record.id,
+      flagged,
+      completed,
+      completedDates: completedMap,
+    });
+
+    return send(req, res, 200, {
+      ok: true,
+      flagged,
+      completed,
+      completedDates: completedMap,
+    });
   } catch (err) {
     return send(req, res, 401, { ok: false, error: err.message || "Unauthorized" });
   }
