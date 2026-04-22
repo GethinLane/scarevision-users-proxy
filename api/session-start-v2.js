@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { kvWrite } from "../lib/progress-kv.js";
 
 const ALLOWED_ORIGINS = ["https://www.scarevision.co.uk", "https://scarevision.co.uk"];
 
@@ -8,7 +9,6 @@ function setCors(req, res) {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  // ✅ allow Authorization so clients can send Bearer tokens
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
 }
@@ -46,6 +46,40 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
     throw new Error(msg);
   }
   return data;
+}
+
+function safeParseList(s) {
+  try {
+    const v = JSON.parse(s || "[]");
+    return Array.isArray(v) ? v.map(Number).filter((n) => Number.isFinite(n)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeParseCompleted(s) {
+  try {
+    const v = JSON.parse(s || "{}");
+    if (v && typeof v === "object" && !Array.isArray(v)) return v;
+    if (Array.isArray(v)) {
+      const map = {};
+      for (const id of v) {
+        const n = Number(id);
+        if (Number.isFinite(n)) map[String(n)] = null;
+      }
+      return map;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function completedMapToArray(map) {
+  return Object.keys(map)
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
 }
 
 export default async function handler(req, res) {
@@ -106,10 +140,10 @@ export default async function handler(req, res) {
       method: "GET",
     });
 
-    const flagged = rec?.fields?.FlaggedCasesJson;
-    const completed = rec?.fields?.CompletedCasesJson;
+    const flaggedRaw = rec?.fields?.FlaggedCasesJson;
+    const completedRaw = rec?.fields?.CompletedCasesJson;
 
-    const needsDefaults = typeof flagged !== "string" || typeof completed !== "string";
+    const needsDefaults = typeof flaggedRaw !== "string" || typeof completedRaw !== "string";
 
     if (needsDefaults) {
       await airtableRequest({
@@ -119,12 +153,31 @@ export default async function handler(req, res) {
         method: "PATCH",
         body: {
           fields: {
-            FlaggedCasesJson: typeof flagged === "string" ? flagged : "[]",
-            CompletedCasesJson: typeof completed === "string" ? completed : "[]",
+            FlaggedCasesJson: typeof flaggedRaw === "string" ? flaggedRaw : "[]",
+            CompletedCasesJson: typeof completedRaw === "string" ? completedRaw : "[]",
           },
         },
       });
     }
+
+    // ================================================================
+    // Seed Upstash with the user's current progress so their very
+    // first page load after login is already fast. We already have
+    // the data in hand — no extra Airtable calls needed.
+    // ================================================================
+    const flaggedParsed = safeParseList(
+      typeof flaggedRaw === "string" ? flaggedRaw : "[]"
+    );
+    const completedParsed = safeParseCompleted(
+      typeof completedRaw === "string" ? completedRaw : "{}"
+    );
+
+    await kvWrite(uid, {
+      recordId,
+      flagged: flaggedParsed,
+      completed: completedMapToArray(completedParsed),
+      completedDates: completedParsed,
+    });
 
     // ✅ signed session token (14 days)
     const exp = Date.now() + 14 * 24 * 60 * 60 * 1000;
@@ -146,13 +199,13 @@ export default async function handler(req, res) {
     );
 
     // ✅ ALSO return token for Bearer auth fallback
-return send(req, res, 200, {
-  ok: true,
-  token: sessionToken,
-  exp,
-  userRecordId: recordId,
-  hasSeenAiIntro: !!rec?.fields?.HasSeenAiIntro,
-});
+    return send(req, res, 200, {
+      ok: true,
+      token: sessionToken,
+      exp,
+      userRecordId: recordId,
+      hasSeenAiIntro: !!rec?.fields?.HasSeenAiIntro,
+    });
 
   } catch (err) {
     return send(req, res, 500, { ok: false, error: err.message || "Server error" });
