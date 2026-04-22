@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { kvRead, kvWrite } from "../lib/progress-kv.js";
 
 const ALLOWED_ORIGINS = ["https://www.scarevision.co.uk", "https://scarevision.co.uk"];
 
@@ -8,7 +9,6 @@ function setCors(req, res) {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  // ✅ Allow Authorization for Bearer tokens
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
 }
@@ -48,7 +48,6 @@ function safeEqual(a, b) {
 function readSessionToken(req) {
   const auth = req.headers.authorization || "";
   if (auth.startsWith("Bearer ")) return auth.slice(7).trim();
-
   const cookies = parseCookies(req);
   return cookies["sca_session"] || "";
 }
@@ -112,7 +111,6 @@ async function airtableRequest({ baseId, token, path, method = "GET", body }) {
   return data;
 }
 
-// REPLACE with these three functions:
 function safeParseList(s) {
   try {
     const v = JSON.parse(s || "[]");
@@ -125,11 +123,8 @@ function safeParseList(s) {
 function safeParseCompleted(s) {
   try {
     const v = JSON.parse(s || "{}");
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      return v; // already new format {"1": "2026-...", "23": null}
-    }
+    if (v && typeof v === "object" && !Array.isArray(v)) return v;
     if (Array.isArray(v)) {
-      // Old format [1, 23, 45] — migrate it, dates unknown so use null
       const map = {};
       for (const id of v) {
         const n = Number(id);
@@ -175,51 +170,91 @@ export default async function handler(req, res) {
       return send(req, res, 500, { ok: false, error: "Server not configured" });
     }
 
-    const filter = encodeURIComponent(`{SquarespaceUserId}="${userId}"`);
-    const found = await airtableRequest({
-      baseId,
-      token,
-      path: `${table}?maxRecords=1&filterByFormula=${filter}`,
-    });
+    // ================================================================
+    // Find the user's Airtable recordId.
+    //
+    // We check Upstash first — if we know the recordId we can do a
+    // direct Airtable GET (~100ms) instead of a filterByFormula
+    // search (~300ms). We only trust the cache for the recordId; the
+    // actual state is always re-read from Airtable so writes can't
+    // clobber each other through stale cache.
+    // ================================================================
+    let record = null;
+    const cached = await kvRead(userId);
 
-    if (!found.records?.length) {
-      return send(req, res, 404, { ok: false, error: "User not found in Airtable yet" });
+    if (cached?.recordId) {
+      try {
+        record = await airtableRequest({
+          baseId,
+          token,
+          path: `${table}/${cached.recordId}`,
+        });
+      } catch {
+        // Record moved/deleted/stale — fall through to filterByFormula
+        record = null;
+      }
     }
 
-    const record = found.records[0];
+    if (!record) {
+      const filter = encodeURIComponent(`{SquarespaceUserId}="${userId}"`);
+      const found = await airtableRequest({
+        baseId,
+        token,
+        path: `${table}?maxRecords=1&filterByFormula=${filter}`,
+      });
+      if (!found.records?.length) {
+        return send(req, res, 404, { ok: false, error: "User not found in Airtable yet" });
+      }
+      record = found.records[0];
+    }
+
     const recordId = record.id;
+    const flagged = safeParseList(record.fields?.FlaggedCasesJson);
+    const completedMap = safeParseCompleted(record.fields?.CompletedCasesJson);
 
-// REPLACE with:
-const flagged = safeParseList(record.fields?.FlaggedCasesJson);
-const completedMap = safeParseCompleted(record.fields?.CompletedCasesJson);
+    // ================================================================
+    // Apply the mutation
+    // ================================================================
+    const flaggedSet = new Set(flagged);
 
-const flaggedSet = new Set(flagged);
+    if (action === "flag") flaggedSet.add(cid);
+    if (action === "unflag") flaggedSet.delete(cid);
+    if (action === "complete") completedMap[String(cid)] = new Date().toISOString();
+    if (action === "uncomplete") delete completedMap[String(cid)];
 
-if (action === "flag")       flaggedSet.add(cid);
-if (action === "unflag")     flaggedSet.delete(cid);
-if (action === "complete")   completedMap[String(cid)] = new Date().toISOString();
-if (action === "uncomplete") delete completedMap[String(cid)];
+    const finalFlagged = Array.from(flaggedSet).sort((a, b) => a - b);
+    const finalCompleted = completedMapToArray(completedMap);
 
-const fields = {
-  FlaggedCasesJson:   JSON.stringify(Array.from(flaggedSet).sort((a, b) => a - b)),
-  CompletedCasesJson: JSON.stringify(completedMap),
-  LastSeen:           new Date().toISOString(),
-};
+    const fields = {
+      FlaggedCasesJson: JSON.stringify(finalFlagged),
+      CompletedCasesJson: JSON.stringify(completedMap),
+      LastSeen: new Date().toISOString(),
+    };
 
-await airtableRequest({
-  baseId,
-  token,
-  path: `${table}/${recordId}`,
-  method: "PATCH",
-  body: { fields },
-});
+    // Write to Airtable (source of truth) FIRST
+    await airtableRequest({
+      baseId,
+      token,
+      path: `${table}/${recordId}`,
+      method: "PATCH",
+      body: { fields },
+    });
 
-return send(req, res, 200, {
-  ok: true,
-  flagged:        Array.from(flaggedSet).sort((a, b) => a - b),
-  completed:      completedMapToArray(completedMap),
-  completedDates: completedMap,
-});
+    // Then write-through to Upstash. If this fails, no harm done —
+    // the next read will hit Airtable and repopulate the cache.
+    await kvWrite(userId, {
+      recordId,
+      flagged: finalFlagged,
+      completed: finalCompleted,
+      completedDates: completedMap,
+    });
+
+    return send(req, res, 200, {
+      ok: true,
+      flagged: finalFlagged,
+      completed: finalCompleted,
+      completedDates: completedMap,
+    });
   } catch (err) {
     return send(req, res, 401, { ok: false, error: err.message || "Unauthorized" });
   }
