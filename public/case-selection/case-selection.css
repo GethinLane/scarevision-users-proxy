@@ -49,8 +49,15 @@
   --peri-mute:  var(--cx-peri-mute);
 }
 
-/* ===== Root wrapper ===== */
+/* ===== Root wrapper (full-bleed paper background, matching portal page) ===== */
 .cx-root {
+  /* Break out of Squarespace's content container so paper bg reaches the
+     viewport edges — same pattern as .sca-cc in portal-design.css */
+  width: 100vw;
+  margin-left:  calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  background: var(--cx-paper);
+
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -59,11 +66,22 @@
   font-size: 15px;
   line-height: 1.5;
   color: var(--cx-ink);
-  max-width: 1440px;
-  margin: 0 auto;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   letter-spacing: -0.005em;
+}
+
+/* Inner shell: max-width container for actual content. All direct children
+   of .cx-root live inside this so the background spans the viewport but the
+   content itself stays aligned. */
+.cx-root .cx-shell {
+  max-width: 1440px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 3vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 .cx-root * { box-sizing: border-box; }
 .cx-root a { color: inherit; text-decoration: none; }
@@ -127,22 +145,49 @@
 /* =======================================================
    Control bar
    ======================================================= */
+/* =======================================================
+   Control bar
+   Flex-wrap layout (not grid) so individual items flow to
+   the next line when there isn't enough horizontal room —
+   instead of clipping off the right edge.
+   Not sticky: design feels cleaner without a floating bar
+   pinned over the card list.
+   ======================================================= */
 .cx-root .cx-controls {
-  display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center;
-  background: #fff; border: 1px solid var(--cx-rule); border-radius: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--cx-rule);
+  border-radius: 14px;
   padding: 10px 12px;
-  position: sticky; top: 72px; z-index: 10;
   box-shadow: var(--cx-shadow-1);
 }
-@media (max-width: 1080px) {
-  .cx-root .cx-controls { grid-template-columns: 1fr auto; gap: 10px; }
-  .cx-root .cx-controls .cx-search { grid-column: 1 / -1; }
+
+/* Search grows to fill remaining row space, but can shrink below its
+   content-size minimum so it never forces overflow. */
+.cx-root .cx-controls .cx-search {
+  flex: 1 1 280px;
+  min-width: 0;
 }
-@media (max-width: 860px) {
-  .cx-root .cx-controls { grid-template-columns: 1fr; gap: 10px; padding: 12px; }
-  .cx-root .cx-controls .cx-seg { width: 100%; justify-content: stretch; overflow-x: auto; }
-  .cx-root .cx-controls .cx-seg button { flex: 1; justify-content: center; white-space: nowrap; }
-  .cx-root .cx-filterbtn-wrap { width: 100%; }
+
+/* Keep the three trailing control groups at their natural width by default. */
+.cx-root .cx-filterbtn-wrap,
+.cx-root .cx-controls .cx-seg {
+  flex: 0 0 auto;
+}
+
+/* At very narrow widths, stretch each control group to its own full-width
+   row so nothing gets squeezed. */
+@media (max-width: 720px) {
+  .cx-root .cx-controls .cx-search,
+  .cx-root .cx-filterbtn-wrap,
+  .cx-root .cx-controls .cx-seg {
+    flex: 1 1 100%;
+  }
+  .cx-root .cx-controls .cx-seg { justify-content: stretch; }
+  .cx-root .cx-controls .cx-seg button { flex: 1; justify-content: center; }
   .cx-root .cx-filterbtn { width: 100%; justify-content: center; }
 }
 
