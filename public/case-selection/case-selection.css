@@ -473,6 +473,13 @@
 .cx-root .cx-case-video-ic {
   font-size: 18px;
   line-height: 1;
+  transition: font-weight .15s;
+}
+/* With FA Pro loaded, fa-light on the <i> gives weight 300. On hover we
+   bump to 900 which is fa-solid's weight, so the icon visually switches
+   from outlined to filled. */
+.cx-root .cx-case-video-link:hover .cx-case-video-ic {
+  font-weight: 900;
 }
 
 /* Difficulty stars — Font Awesome, matches old site exactly */
@@ -716,7 +723,9 @@
 .cx-drawer-cases .cx-case-video-link:hover { color: var(--cx-ink, #253551); }
 .cx-drawer-cases .cx-case-video-ic {
   font-size: 18px; line-height: 1;
+  transition: font-weight .15s;
 }
+.cx-drawer-cases .cx-case-video-link:hover .cx-case-video-ic { font-weight: 900; }
 .cx-drawer-cases .cx-case-diff { display: inline-flex; align-items: center; gap: 2px; line-height: 1; }
 .cx-drawer-cases .cx-case-star { font-size: 12px; color: var(--cx-rule-2, #bfc8d9); line-height: 1; }
 .cx-drawer-cases .cx-case-star.on { color: var(--cx-peri, #7DA8F0); }
