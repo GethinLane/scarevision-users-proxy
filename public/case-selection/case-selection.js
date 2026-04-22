@@ -219,17 +219,25 @@
     } catch {}
   }
 
-  // Cross-tab sync (same channel as old script, so both live side-by-side)
+  // Cross-tab sync (same channel as old script, so both live side-by-side).
+  // We set _suppressNextBroadcast briefly around our own writes so we don't
+  // react to the echo of our own BroadcastChannel/storage message.
+  let _suppressBroadcastUntil = 0;
+
   const progressChannel = "BroadcastChannel" in window
     ? new BroadcastChannel("sca-progress")
     : null;
   if (progressChannel) {
     progressChannel.onmessage = e => {
-      if (e?.data?.type === "progress-updated") refreshProgressAfterChange();
+      if (e?.data?.type !== "progress-updated") return;
+      if (Date.now() < _suppressBroadcastUntil) return;
+      refreshProgressAfterChange();
     };
   }
   window.addEventListener("storage", e => {
-    if (e.key === "sca-progress-updated") refreshProgressAfterChange();
+    if (e.key !== "sca-progress-updated") return;
+    if (Date.now() < _suppressBroadcastUntil) return;
+    refreshProgressAfterChange();
   });
   window.addEventListener("focus",    refreshProgressAfterChange);
   window.addEventListener("pageshow", refreshProgressAfterChange);
@@ -390,11 +398,51 @@
     // Initialise / sync Select2 on the themes selector (idempotent)
     ensureSelect2();
 
-    // Drawer: lives on document.body (fixed-position). Always remove the old
-    // one first so we never stack multiple drawers after re-renders.
-    document.querySelectorAll(".cx-drawer-wrap").forEach(el => el.remove());
-    if (state.opened && state.view !== "list") {
+    // Drawer lives on document.body (fixed-position). Don't rebuild it from
+    // scratch every render — that would restart the slide-in animation and
+    // cause visible "blink" when progress state changes while the drawer is
+    // open. Instead: only create it when first opened, patch its contents in
+    // place on subsequent renders, remove it when closed.
+    syncDrawer();
+  }
+
+  function syncDrawer() {
+    const want = state.opened && state.view !== "list";
+    const existing = document.querySelector(".cx-drawer-wrap");
+
+    if (!want) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    // Want a drawer. If one already exists for the same topic, patch it;
+    // otherwise (topic changed, or no drawer yet) build fresh.
+    if (existing && existing.dataset.topicId === String(state.opened)) {
+      patchDrawer(existing);
+    } else {
+      if (existing) existing.remove();
       document.body.appendChild(renderDrawer());
+    }
+  }
+
+  function patchDrawer(wrap) {
+    const topic = state.topics.find(t => t.id === state.opened);
+    if (!topic) return;
+    const cases = state.casesByTopic[topic.id] || [];
+    const pct = topic.n ? Math.round((topic.d / topic.n) * 100) : 0;
+
+    // Update header counters
+    const p = wrap.querySelector(".cx-drawer-head p");
+    if (p) p.textContent = `${topic.d} of ${topic.n} cases done · ${pct}%`;
+
+    // Update progress bar
+    const bar = wrap.querySelector(".cx-drawer-bar > span");
+    if (bar) bar.style.width = pct + "%";
+
+    // Re-render the case list inside the drawer
+    const list = wrap.querySelector(".cx-drawer-cases");
+    if (list) {
+      list.replaceChildren(...cases.map(caseEntry).filter(Boolean));
     }
   }
 
@@ -982,7 +1030,11 @@
 
     const close = () => { state.opened = null; render(); };
 
-    const wrap = h("div", { class: "cx-drawer-wrap", onClick: close });
+    const wrap = h("div", {
+      class: "cx-drawer-wrap",
+      "data-topic-id": String(topic.id),
+      onClick: close,
+    });
     const aside = h("aside", { class: "cx-drawer", onClick: (e) => e.stopPropagation() },
       h("header", { class: "cx-drawer-head" },
         h("div", {},
@@ -1105,6 +1157,9 @@
 
     const attempt = async () => {
       await window.SCAProgress.setComplete(c.id, !wasDone);
+      // Suppress echoes of our own broadcast/storage events for a short window
+      // so we don't re-render a second time when we hear our own message.
+      _suppressBroadcastUntil = Date.now() + 1500;
       try { localStorage.setItem("sca-progress-updated", String(Date.now())); } catch {}
       try { progressChannel?.postMessage?.({ type: "progress-updated" }); } catch {}
     };
