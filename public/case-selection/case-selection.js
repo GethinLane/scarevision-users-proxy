@@ -435,9 +435,14 @@
     const p = wrap.querySelector(".cx-drawer-head p");
     if (p) p.textContent = `${topic.d} of ${topic.n} cases done · ${pct}%`;
 
-    // Update progress bar
+    // Update progress bar — apply both width and background-size so the
+    // gradient reveals correctly when completion changes mid-drawer.
     const bar = wrap.querySelector(".cx-drawer-bar > span");
-    if (bar) bar.style.width = pct + "%";
+    if (bar) {
+      const s = progressBarFillStyle(pct);
+      bar.style.width = s.width;
+      bar.style.backgroundSize = s.backgroundSize || "";
+    }
 
     // Re-render the case list inside the drawer
     const list = wrap.querySelector(".cx-drawer-cases");
@@ -890,23 +895,26 @@
   }
 
   /* =========================================================
-     Progress-bar colour banding
+     Progress-bar gradient
      =========================================================
-     Five bands based on completion %. The JS only decides WHICH
-     band — the hex values live in CSS so you can retune colours
-     without republishing the JS. Bands:
-       0%            → "empty"    (faintest peri-tint)
-       1–34%         → "low"      (peri)
-       35–69%        → "mid"      (steel-blue midpoint)
-       70–99%        → "high"     (navy)
-       100%          → "complete" (deep ink navy, matches open-row head)
+     The track's fill span carries a linear-gradient from pale (#c8d4e4)
+     through peri (#7DA8F0) to deep ink (#253551). At 100% fill the whole
+     spectrum is visible; at 50% only the left half (ending around peri)
+     is visible. The trick: the fill is only as wide as the progress, but
+     the gradient must be scaled up so it represents the FULL track. We do
+     that by setting background-size = (100/pct)% horizontally — so the
+     fill shows exactly its left slice of the full gradient.
   */
-  function progressBandForPct(pct) {
-    if (pct >= 100) return "complete";
-    if (pct >= 70)  return "high";
-    if (pct >= 35)  return "mid";
-    if (pct > 0)    return "low";
-    return "empty";
+  function progressBarFillStyle(pct) {
+    if (pct <= 0) return { width: "0%" };
+    // background-size horizontal = 100% / (pct/100) = 10000/pct %
+    // e.g. pct=25 → bg-size 400%, fill width 25% → shows 0–25% of gradient
+    // e.g. pct=100 → bg-size 100%, fill width 100% → shows the whole thing
+    const bgX = 10000 / pct;
+    return {
+      width: pct + "%",
+      backgroundSize: bgX.toFixed(2) + "% 100%",
+    };
   }
 
   /* ---------- List view (default) ---------- */
@@ -924,8 +932,8 @@
         h("span", { class: "cx-row-chevron" }, isOpen ? "−" : "+"),
         h("span", { class: "cx-row-title" }, t.t),
         h("span", { class: "cx-row-progress" },
-          h("span", { class: "cx-row-track", "data-progress": progressBandForPct(pct) },
-            h("span", { style: { width: pct + "%" } }),
+          h("span", { class: "cx-row-track" },
+            h("span", { style: progressBarFillStyle(pct) }),
           ),
           h("span", { class: "cx-row-count", html: `<b>${t.d}</b>/${t.n}` }),
         ),
@@ -1066,7 +1074,7 @@
         ),
         h("button", { class: "cx-drawer-close", onClick: close, "aria-label": "Close" }, "×"),
       ),
-      h("div", { class: "cx-drawer-bar" }, h("span", { style: { width: pct + "%" } })),
+      h("div", { class: "cx-drawer-bar" }, h("span", { style: progressBarFillStyle(pct) })),
       h("div", { class: "cx-drawer-cases" },
         ...cases.map(caseEntry),
       ),
