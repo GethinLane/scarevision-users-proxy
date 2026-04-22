@@ -389,9 +389,23 @@
 }
 .cx-root .cx-row.open .cx-row-track { background: rgba(255,255,255,0.15); }
 .cx-root .cx-row-track > span {
-  display: block; height: 100%; background: var(--cx-ink); border-radius: 999px;
+  display: block; height: 100%;
+  background: var(--cx-ink);
+  border-radius: 999px;
+  transition: background .25s ease;
 }
 .cx-root .cx-row.open .cx-row-track > span { background: var(--cx-paper-3); }
+
+/* Progress-bar colour banding (Option B from the mockup).
+   The fade goes peri → navy as completion rises, so at a glance you can
+   tell a barely-started topic (light peri) from a nearly-done one (navy)
+   without reading the count. The open-row override above wins (white on
+   navy) when the row is expanded — these rules apply to collapsed rows. */
+.cx-root .cx-row:not(.open) .cx-row-track[data-progress="empty"]    > span { background: #c8d4e4; }
+.cx-root .cx-row:not(.open) .cx-row-track[data-progress="low"]      > span { background: #7DA8F0; }
+.cx-root .cx-row:not(.open) .cx-row-track[data-progress="mid"]      > span { background: #5d77a8; }
+.cx-root .cx-row:not(.open) .cx-row-track[data-progress="high"]     > span { background: #3a4968; }
+.cx-root .cx-row:not(.open) .cx-row-track[data-progress="complete"] > span { background: #253551; }
 .cx-root .cx-row-count {
   font-family: "JetBrains Mono", monospace; font-size: 11px;
   color: var(--cx-muted); letter-spacing: 0.06em; white-space: nowrap;
