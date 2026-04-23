@@ -115,7 +115,7 @@
     kind:           "topic",                 // "topic" | "experience"
     selectedThemes: [],                      // Select2 multi-select values (Themes field)
     allThemes:      [],                      // union of Themes across all records
-    filters:        { ...DEFAULT_FILTERS },
+    filters:        readFiltersFromUrl(),
     opened:         null,                    // topic id (drawer target, grid/priority views)
     listOpen:       new Set(),               // list view: which topics are expanded
 
@@ -131,6 +131,16 @@
     // Migrate deprecated values. User removed Index + Heatmap and made List the default.
     if (raw === "list" || raw === "grid" || raw === "priority") return raw;
     return "list";
+  }
+
+  function readFiltersFromUrl() {
+    const out = { ...DEFAULT_FILTERS };
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("videoOnly") === "true")      out.videoOnly = true;
+      if (p.get("showDiagnosis") === "false") out.diagnosis = false;
+    } catch {}
+    return out;
   }
 
   function saveFiltersToUrl() {
