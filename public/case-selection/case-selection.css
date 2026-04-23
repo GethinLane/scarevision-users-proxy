@@ -478,9 +478,15 @@
 }
 .cx-root .cx-case-check svg { width: 12px; height: 12px; }
 .cx-root .cx-case-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Case titles can wrap to two lines before truncating. Better than mid-word
+   cutoff ("Hypertension in Pregnancy: Trave…") which is jarring to read. */
 .cx-root .cx-case-title {
   font-size: 15px; color: var(--cx-ink); font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.3;
 }
 .cx-root .cx-case.done .cx-case-title { color: var(--cx-ink-2); }
 .cx-root .cx-case-diag {
@@ -596,33 +602,67 @@
   padding: 16px 14px; display: flex; flex-direction: column; gap: 12px;
   min-height: 300px;
 }
-.cx-root .cx-prio-peri { background: var(--cx-peri-soft); border-color: rgba(125,168,240,0.3); }
-.cx-root .cx-prio-ink  { background: var(--cx-ink); color: #fff; border-color: var(--cx-ink); }
-.cx-root .cx-prio-soft { background: var(--cx-paper-3); border-color: var(--cx-paper-3); }
-.cx-root .cx-prio-done { background: #fff; border-color: var(--cx-rule); }
 
+/* Four column tones — matches the list-view progress gradient.
+   Each must set background + border, and flip text colour where needed. */
+
+/* Empty — untouched topics, paper/white — matches "no bar" in list view */
+.cx-root .cx-prio-empty-tone {
+  background: #fff;
+  border-color: var(--cx-rule);
+}
+
+/* Peri — early progress — same tone as the peri section of the bar */
+.cx-root .cx-prio-peri {
+  background: var(--cx-peri-soft);
+  border-color: rgba(125,168,240,0.3);
+}
+
+/* Steel — mid/late progress */
+.cx-root .cx-prio-steel {
+  background: #5d77a8;
+  border-color: #5d77a8;
+  color: #fff;
+}
+
+/* Ink — mastered, matches a full list-view bar */
+.cx-root .cx-prio-ink {
+  background: var(--cx-ink);
+  border-color: var(--cx-ink);
+  color: #fff;
+}
+
+/* --- Column header --- */
 .cx-root .cx-prio-head {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
   padding-bottom: 10px; border-bottom: 1px solid rgba(0,0,0,0.08);
 }
-.cx-root .cx-prio-ink .cx-prio-head { border-bottom-color: rgba(255,255,255,0.15); }
+.cx-root .cx-prio-steel .cx-prio-head,
+.cx-root .cx-prio-ink   .cx-prio-head { border-bottom-color: rgba(255,255,255,0.18); }
+
 .cx-root .cx-prio-head h3 {
   font-family: "DM Serif Display", serif; font-size: 22px; font-weight: 400;
   letter-spacing: -0.01em; margin: 0; line-height: 1;
 }
-.cx-root .cx-prio-peri .cx-prio-head h3 { color: var(--cx-ink); }
-.cx-root .cx-prio-ink  .cx-prio-head h3 { color: var(--cx-peri); font-style: italic; }
-.cx-root .cx-prio-soft .cx-prio-head h3 { color: var(--cx-ink); }
-.cx-root .cx-prio-done .cx-prio-head h3 { color: var(--cx-muted); }
+.cx-root .cx-prio-empty-tone .cx-prio-head h3 { color: var(--cx-muted); }
+.cx-root .cx-prio-peri       .cx-prio-head h3 { color: var(--cx-ink); }
+.cx-root .cx-prio-steel      .cx-prio-head h3 { color: #fff; }
+.cx-root .cx-prio-ink        .cx-prio-head h3 { color: #fff; font-style: italic; }
+
 .cx-root .cx-prio-head p {
   font-size: 13px; color: currentColor; opacity: 0.7; margin: 4px 0 0; line-height: 1.4;
 }
+.cx-root .cx-prio-steel .cx-prio-head p,
+.cx-root .cx-prio-ink   .cx-prio-head p { opacity: 0.8; }
+
 .cx-root .cx-prio-n {
   font-family: "DM Serif Display", serif; font-size: 28px; line-height: 1;
   color: currentColor; opacity: 0.45;
 }
-.cx-root .cx-prio-ink .cx-prio-n { color: var(--cx-peri); opacity: 1; }
+.cx-root .cx-prio-steel .cx-prio-n,
+.cx-root .cx-prio-ink   .cx-prio-n { color: #fff; opacity: 1; }
 
+/* --- Items list --- */
 .cx-root .cx-prio-items { display: flex; flex-direction: column; gap: 8px; }
 .cx-root .cx-prio-empty {
   padding: 16px 10px; text-align: center; font-size: 13px;
@@ -630,34 +670,68 @@
   border: 1px dashed currentColor; border-radius: 10px;
   border-color: rgba(0,0,0,0.15);
 }
-.cx-root .cx-prio-ink .cx-prio-empty { border-color: rgba(255,255,255,0.2); }
+.cx-root .cx-prio-steel .cx-prio-empty,
+.cx-root .cx-prio-ink   .cx-prio-empty { border-color: rgba(255,255,255,0.25); }
+
+/* Individual case buttons */
 .cx-root .cx-prio-item {
-  background: rgba(255,255,255,0.6); border: 1px solid transparent;
+  background: rgba(255,255,255,0.65);
+  border: 1px solid transparent;
   border-radius: 10px; padding: 12px 14px;
   cursor: pointer; text-align: left; font: inherit; color: inherit;
   display: flex; flex-direction: column; gap: 10px;
   transition: background .15s, border-color .15s, transform .15s;
 }
-.cx-root .cx-prio-ink  .cx-prio-item { background: rgba(255,255,255,0.08); color: #fff; }
-.cx-root .cx-prio-done .cx-prio-item { background: var(--cx-paper); }
-.cx-root .cx-prio-item:hover { transform: translateY(-1px); background: #fff; border-color: var(--cx-ink); }
-.cx-root .cx-prio-ink .cx-prio-item:hover { background: rgba(125,168,240,0.2); border-color: var(--cx-peri); }
+/* Dark-backed columns: case buttons get translucent white surface + white text */
+.cx-root .cx-prio-steel .cx-prio-item,
+.cx-root .cx-prio-ink   .cx-prio-item {
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.1);
+  color: #fff;
+}
+/* Empty-tone (white) column: give buttons a faint paper fill so they don't melt into the card bg */
+.cx-root .cx-prio-empty-tone .cx-prio-item { background: var(--cx-paper); }
+
+.cx-root .cx-prio-item:hover {
+  transform: translateY(-1px);
+  background: #fff;
+  border-color: var(--cx-ink);
+}
+.cx-root .cx-prio-steel .cx-prio-item:hover,
+.cx-root .cx-prio-ink   .cx-prio-item:hover {
+  background: rgba(255,255,255,0.22);
+  border-color: #fff;
+}
+
 .cx-root .cx-prio-item h4 {
   font-family: "Poppins", sans-serif; font-size: 14.5px; font-weight: 500;
   letter-spacing: -0.01em; margin: 0; line-height: 1.3; text-wrap: balance;
+  color: inherit;
 }
+
+/* Inline progress bar inside each case button */
 .cx-root .cx-prio-line {
   height: 3px; background: rgba(0,0,0,0.08); border-radius: 999px; overflow: hidden;
 }
-.cx-root .cx-prio-ink .cx-prio-line { background: rgba(255,255,255,0.15); }
-.cx-root .cx-prio-line > span { display: block; height: 100%; background: var(--cx-ink); }
-.cx-root .cx-prio-ink  .cx-prio-line > span { background: var(--cx-peri); }
-.cx-root .cx-prio-peri .cx-prio-line > span { background: var(--cx-peri); }
+.cx-root .cx-prio-steel .cx-prio-line,
+.cx-root .cx-prio-ink   .cx-prio-line { background: rgba(255,255,255,0.18); }
+.cx-root .cx-prio-line > span { display: block; height: 100%; background: var(--cx-ink); border-radius: 999px; }
+/* On dark columns use peri for the fill so it's visible against the translucent track */
+.cx-root .cx-prio-steel .cx-prio-line > span,
+.cx-root .cx-prio-ink   .cx-prio-line > span { background: var(--cx-peri); }
+/* Empty & peri columns use ink for the fill — consistent with the scale */
+.cx-root .cx-prio-peri .cx-prio-line > span { background: var(--cx-ink); }
+.cx-root .cx-prio-empty-tone .cx-prio-line > span { background: var(--cx-ink); }
+
 .cx-root .cx-prio-meta {
   display: flex; justify-content: space-between; align-items: center;
   font-family: "JetBrains Mono", monospace; font-size: 10.5px;
   letter-spacing: 0.06em; opacity: 0.7;
+  color: inherit;
 }
+.cx-root .cx-prio-steel .cx-prio-meta,
+.cx-root .cx-prio-ink   .cx-prio-meta { opacity: 0.85; }
+
 .cx-root .cx-prio-item b { font-family: "DM Serif Display", serif; font-size: 14px; font-weight: 400; letter-spacing: 0; }
 .cx-root .cx-prio-pct { font-family: "DM Serif Display", serif; font-size: 14px; opacity: 1; }
 
@@ -751,7 +825,11 @@
 .cx-drawer-cases .cx-case-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cx-drawer-cases .cx-case-title {
   font-size: 15px; color: var(--cx-ink, #253551); font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.3;
 }
 .cx-drawer-cases .cx-case.done .cx-case-title { color: var(--cx-ink-2, #3a4968); }
 .cx-drawer-cases .cx-case-diag {
