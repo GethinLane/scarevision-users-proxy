@@ -460,10 +460,21 @@
     const topicsN   = state.topics.length;
     const pct       = total ? Math.round((done / total) * 100) : 0;
 
+    // Hero title reflects the active filter mode. "Browse written/videos/AI cases."
+    // gives the user a live sense of what subset they're looking at, and leaves
+    // room to add further modes (AI, etc.) behind different colour tokens.
+    const mode = heroMode();
+
     return h("section", { class: "cx-hero" },
       h("div", { class: "cx-hero-left" },
         h("div", { class: "cx-eyebrow" }, "Cases"),
-        h("h1", {}, "Browse written cases."),
+        h("h1", { class: "cx-hero-title" },
+          "Browse cases: ",
+          h("span", {
+            class: "cx-hero-mode",
+            "data-mode": mode.key,
+          }, mode.word),
+        ),
         h("p", { class: "cx-hero-sub", html:
           `<b>${total}</b> cases &middot; <b>${topicsN}</b> ${kindLabel} &middot; <b>${pct}%</b> complete`
         }),
@@ -474,6 +485,14 @@
         ),
       ),
     );
+  }
+
+  /* Map the current filter state to a word + colour token for the hero.
+     Add more modes here (AI, etc.) and they'll render automatically, as
+     long as the CSS has a matching [data-mode="..."] rule. */
+  function heroMode() {
+    if (state.filters.videoOnly) return { key: "videos",  word: "Videos" };
+    return { key: "written", word: "Written" };
   }
 
   function onRandomCase(e) {
