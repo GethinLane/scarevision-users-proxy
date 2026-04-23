@@ -389,6 +389,7 @@
       ensureControls(),
       renderActiveFilters(),
       renderMain(),
+      ensureRecent(),
     );
     mount.replaceChildren(shell);
 
@@ -889,6 +890,136 @@
     return h("button", { class: "cx-chip", onClick: onRemove },
       label, " ", h("span", {}, "×"),
     );
+  }
+
+  /* =========================================================
+     Recent section (below main list)
+     =========================================================
+     5×2 grid of the 10 most-recently-added cases, plus a
+     collapsible list of the titles. Same image source + sort
+     behaviour as the portal's "recently added" rail so the two
+     pages stay visually consistent.
+  */
+  const CASE_IMAGE_BASE = "https://iix7q95khocr9u36.public.blob.vercel-storage.com/CaseImages";
+  const RECENT_COUNT = 10;
+  let _recentEl = null;
+
+  function computeRecentItems() {
+    const records = state.records || [];
+    // Map down to a uniform shape and filter out cases without a working link.
+    // (Cases without a Link field aren't navigable — don't surface them here.)
+    const items = records.map(r => {
+      const f = r.fields || {};
+      return {
+        id:      Number(f["Case ID"]),
+        title:   f["Name"] || "",
+        tag:     (Array.isArray(f["Clinical Topics"]) ? f["Clinical Topics"][0] : f["Clinical Topics"]) || "",
+        created: f["Created"] ? new Date(f["Created"]).getTime() : null,
+        hasLink: typeof f["Link"] === "string" && !!f["Link"].trim(),
+      };
+    }).filter(x => Number.isFinite(x.id) && x.hasLink);
+
+    // Prefer Created date when any record has it; fall back to Case ID descending.
+    // (Matches portal.js behaviour exactly — if Created is missing/inconsistent
+    //  across the base, sorting by Case ID is a reasonable proxy for "newest".)
+    if (items.some(x => x.created)) {
+      return items.filter(x => x.created)
+                  .sort((a, b) => b.created - a.created)
+                  .slice(0, RECENT_COUNT);
+    }
+    return items.sort((a, b) => b.id - a.id).slice(0, RECENT_COUNT);
+  }
+
+  function ensureRecent() {
+    if (!_recentEl) {
+      _recentEl = h("section", { class: "cx-recent" });
+    }
+    populateRecent();
+    return _recentEl;
+  }
+
+  function populateRecent() {
+    if (!_recentEl) return;
+    const items = computeRecentItems();
+
+    if (!items.length) {
+      // No records yet or none with usable links — hide the whole section.
+      _recentEl.style.display = "none";
+      _recentEl.innerHTML = "";
+      return;
+    }
+    _recentEl.style.display = "";
+
+    // Header
+    const head = h("header", { class: "cx-recent-head" },
+      h("div", { class: "cx-recent-head-left" },
+        h("div", { class: "cx-eyebrow" }, `${items.length} newest cases`),
+        h("h3", {}, "Recently added"),
+      ),
+    );
+
+    // Grid of thumbnails — pure anchors, no JS wiring needed. The onerror hides
+    // the <img> on a 404 so the gradient background shows through instead.
+    const grid = h("div", { class: "cx-recent-grid" });
+    items.forEach((it, i) => {
+      const link = document.createElement("a");
+      link.className = "cx-recent-tile";
+      link.href = `/casev2?case=${it.id}`;
+      link.setAttribute("aria-label", it.title || `Case ${it.id}`);
+      link.dataset.seed = String(i % 5);
+
+      const img = document.createElement("img");
+      img.className = "cx-recent-img";
+      img.src = `${CASE_IMAGE_BASE}/Case-${it.id}.webp`;
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.width = 400;
+      img.height = 400;
+      img.onerror = function () { this.style.display = "none"; };
+      link.appendChild(img);
+
+      const num = document.createElement("span");
+      num.className = "cx-recent-num";
+      num.textContent = `#${it.id}`;
+      link.appendChild(num);
+
+      grid.appendChild(link);
+    });
+
+    // Collapsible list of titles — native <details>/<summary> (no JS).
+    // Default collapsed; the user can expand to see names.
+    const details = h("details", { class: "cx-recent-details" });
+    const summary = h("summary", { class: "cx-recent-summary" },
+      h("span", {}, "Show case names"),
+      h("i", { class: "fa-solid fa-chevron-down cx-recent-chev" }),
+    );
+    const list = h("ol", { class: "cx-recent-list" });
+    items.forEach(it => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = `/casev2?case=${it.id}`;
+      a.textContent = it.title || `Case ${it.id}`;
+      li.appendChild(a);
+
+      if (it.tag) {
+        const tagEl = document.createElement("span");
+        tagEl.className = "cx-recent-list-tag";
+        tagEl.textContent = it.tag;
+        li.appendChild(tagEl);
+      }
+
+      const idEl = document.createElement("span");
+      idEl.className = "cx-recent-list-id";
+      idEl.textContent = `#${it.id}`;
+      li.appendChild(idEl);
+
+      list.appendChild(li);
+    });
+    details.appendChild(summary);
+    details.appendChild(list);
+
+    _recentEl.replaceChildren(head, grid, details);
   }
 
   /* ---------- Main content by view ---------- */
