@@ -903,6 +903,12 @@
   const CASE_IMAGE_BASE = "https://iix7q95khocr9u36.public.blob.vercel-storage.com/CaseImages";
   const RECENT_COUNT = 10;
   let _recentEl = null;
+  // Signature of the last rendered items, so re-renders that don't change the
+  // recent list skip DOM rebuild entirely. Without this, every progress toggle
+  // / filter change / view switch re-creates all 10 <img> elements which the
+  // browser may re-fetch (cache timing is not guaranteed when elements are
+  // destroyed and recreated in quick succession).
+  let _recentSig = null;
 
   function computeRecentItems() {
     const records = state.records || [];
@@ -946,8 +952,18 @@
       // No records yet or none with usable links — hide the whole section.
       _recentEl.style.display = "none";
       _recentEl.innerHTML = "";
+      _recentSig = "empty";
       return;
     }
+
+    // Signature = ordered list of case IDs. If identical to last render,
+    // the DOM is already correct — bail before doing any work. This saves
+    // ~10 img destroy/recreate cycles per unrelated re-render (progress
+    // toggle, filter change, view switch).
+    const sig = items.map(it => it.id).join(",");
+    if (_recentSig === sig) return;
+    _recentSig = sig;
+
     _recentEl.style.display = "";
 
     // Header
