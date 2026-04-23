@@ -24,7 +24,10 @@
   --cx-peri:       #7DA8F0;
   --cx-peri-ink:   #c8d4e4;
   --cx-peri-mute:  #8e9ab4;
-  --cx-peri-soft:  #edf3fc;
+  --cx-peri-soft:  #e9f0fb;
+  /* Row hover — "powder" blue. Deliberately desaturated, distinct from
+     paper (too blue-grey) and peri-soft (too close to filter chips). */
+  --cx-row-hover:  #e5ecf4;
 
   --cx-r-sm: 6px;
   --cx-r:    10px;
@@ -382,7 +385,7 @@
   background: transparent; border: 0; font: inherit; color: inherit;
   width: 100%; cursor: pointer; text-align: left;
 }
-.cx-root .cx-row-head:hover { background: var(--cx-peri-soft); }
+.cx-root .cx-row-head:hover { background: var(--cx-row-hover); }
 .cx-root .cx-row.open .cx-row-head { background: var(--cx-ink); color: #fff; }
 .cx-root .cx-row-chevron {
   font-size: 20px; color: var(--cx-muted); font-weight: 300;
@@ -456,7 +459,7 @@
   background: transparent; transition: background .15s;
   text-decoration: none; color: inherit;
 }
-.cx-root .cx-case:hover { background: var(--cx-peri-soft); }
+.cx-root .cx-case:hover { background: var(--cx-row-hover); }
 .cx-root .cx-case-check {
   width: 18px; height: 18px; border-radius: 4px;
   border: 1.5px solid var(--cx-rule-2); background: #fff;
@@ -818,7 +821,7 @@
   font-family: "Poppins", sans-serif; font-size: 15px; color: var(--cx-ink, #253551);
 }
 .cx-drawer-cases .cx-case:nth-child(even) { border-right: 0; }
-.cx-drawer-cases .cx-case:hover { background: var(--cx-peri-soft, #e9f0fb); }
+.cx-drawer-cases .cx-case:hover { background: var(--cx-row-hover, #e5ecf4); }
 
 /* Re-apply case-internal styles inside drawer (since it's outside .cx-root) */
 .cx-drawer-cases .cx-case-check {
@@ -1037,10 +1040,10 @@
   margin-bottom: 6px;
 }
 .cx-root .cx-recent-head h3 {
-  font-family: "DM Serif Display", serif;
+  font-family: "Poppins", sans-serif;
   font-size: 26px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--cx-ink);
   line-height: 1;
   margin: 0;
@@ -1134,7 +1137,7 @@
   transition: background .15s ease;
 }
 .cx-root .cx-recent-summary::-webkit-details-marker { display: none; }
-.cx-root .cx-recent-summary:hover { background: var(--cx-peri-soft); }
+.cx-root .cx-recent-summary:hover { background: var(--cx-row-hover); }
 .cx-root .cx-recent-chev {
   font-size: 13px;
   color: var(--cx-muted);
@@ -1158,7 +1161,7 @@
   transition: background .12s ease;
   min-width: 0;
 }
-.cx-root .cx-recent-list li:hover { background: var(--cx-peri-soft); }
+.cx-root .cx-recent-list li:hover { background: var(--cx-row-hover); }
 .cx-root .cx-recent-list li::before {
   content: counter(recent-counter);
   font-family: "JetBrains Mono", monospace;
