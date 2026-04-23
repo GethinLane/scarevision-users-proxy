@@ -463,10 +463,7 @@
     return h("section", { class: "cx-hero" },
       h("div", { class: "cx-hero-left" },
         h("div", { class: "cx-eyebrow" }, "Cases"),
-        h("h1", {},
-          "Browse cases. ",
-          h("span", { class: "cx-hero-accent" }, "Find what you need."),
-        ),
+        h("h1", {}, "Browse written cases."),
         h("p", { class: "cx-hero-sub", html:
           `<b>${total}</b> cases &middot; <b>${topicsN}</b> ${kindLabel} &middot; <b>${pct}%</b> complete`
         }),
@@ -1007,11 +1004,13 @@
       else                  b.progress.push(t);
     });
 
+    // Tone names match the progress-bar story: empty/paper for not-yet-started,
+    // peri for early progress, steel for mid/late, ink navy for mastered.
     const cols = [
-      { key: "next",     t: "Start next",   sub: "Untouched topics — a fresh place to begin", tone: "peri", items: b.next },
-      { key: "progress", t: "Keep going",   sub: "Partially complete — build momentum",       tone: "ink",  items: b.progress },
-      { key: "nearly",   t: "Nearly there", sub: "Less than 30% of cases left",                tone: "soft", items: b.nearly },
-      { key: "mastered", t: "Mastered",     sub: "100% — revisit any case anytime",            tone: "done", items: b.mastered },
+      { key: "next",     t: "Start next",   sub: "Untouched topics — a fresh place to begin", tone: "empty-tone", items: b.next },
+      { key: "progress", t: "Keep going",   sub: "Partially complete — build momentum",       tone: "peri",       items: b.progress },
+      { key: "nearly",   t: "Nearly there", sub: "Less than 30% of cases left",                tone: "steel",      items: b.nearly },
+      { key: "mastered", t: "Mastered",     sub: "100% — revisit any case anytime",            tone: "ink",        items: b.mastered },
     ];
 
     const wrap = h("section", { class: "cx-prio" });
