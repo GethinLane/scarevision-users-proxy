@@ -1,24 +1,54 @@
 /**
- * sca-auth.js
- * ===========
+ * sca-auth.js — v2 with SiteUserInfo fast-path
+ * =============================================
  * Handles all identity and session token logic.
  * Must be loaded before sca-progress.js and any page scripts.
  *
- * Exposes:
+ * Exposes (UNCHANGED from v1):
  *   window.SCAAuth.getIdentity()  → Promise<identity|null>
  *   window.SCAAuth.getToken()     → Promise<token|null>
  *   window.SCAAuth.readIdentity() → identity|null  (synchronous, cache only)
+ *   window.SCAAuth.authHeaders(t) → { Authorization: "Bearer " + t } | {}
  *
- * Auth order:
- *   1. Live Squarespace session (crumb cookies) — freshest, updates cache
- *   2. localStorage sca_member_identity cache   — fallback, used regardless of age
- *   3. session-start-v2 proxy call              — writes signed token
- *   4. Token cached in sca_session_token        — skips step 3 next visit
- *      BUT only if token UID matches current identity
+ * ─── WHAT CHANGED IN v2 ───────────────────────────────────────────────
  *
- * ✅ FIX (2026-03-28): getToken() now always resolves identity FIRST, then
- *    validates the cached token's UID against the identity. Prevents cross-user
- *    token reuse when a different person logs in on the same device/browser.
+ * Squarespace sets a readable `SiteUserInfo` cookie on every logged-in page:
+ *   {
+ *     "authenticated": true,
+ *     "lastAuthenticatedOn": "2026-04-23T12:57:55.449Z",
+ *     "siteUserId": "65c1f73c3318b741cc561f12",
+ *     "firstName": "free"
+ *   }
+ *
+ * Previously, `getToken()` always did:
+ *   1. fetch /api/site-users/account/profile  (~200-400ms)
+ *   2. Decode cached token, verify uid matches fetched identity
+ *   3. Return cached token
+ *
+ * v2 adds a synchronous fast-path BEFORE step 1:
+ *   a. Parse SiteUserInfo cookie → get siteUserId
+ *   b. Read cached token from localStorage, decode its uid, check expiry
+ *   c. If token.uid === siteUserId AND token not expired → return cached
+ *      token INSTANTLY (zero network calls)
+ *   d. If anything fails → fall through to the existing slow path
+ *
+ * ─── SAFETY PROPERTIES PRESERVED ──────────────────────────────────────
+ *
+ * 1. Cross-user token reuse is still blocked. Squarespace maintains
+ *    `SiteUserInfo` — when User B logs in, the cookie gets rewritten
+ *    with User B's siteUserId. Any stale token minted for User A fails
+ *    the uid-match check and falls through to mint a fresh one.
+ *
+ * 2. Server-side signature verification unchanged. Progress endpoints
+ *    still verify the token signature; a forged or tampered token
+ *    fails server-side regardless of what happens client-side.
+ *
+ * 3. No regression if `SiteUserInfo` is missing or malformed. The
+ *    fast-path bails, slow-path runs exactly as before. Worst case =
+ *    current behaviour, best case = ~300-500ms saved per page load.
+ *
+ * 4. Token expiry still checked. If cached token is expired,
+ *    fast-path bails regardless of uid match.
  */
 
 (() => {
@@ -33,7 +63,7 @@
 
 
   /* ============================================================
-     IDENTITY
+     COOKIE HELPERS
   ============================================================ */
 
   /** Parse document.cookie into a key→value map */
@@ -47,8 +77,53 @@
   }
 
   /**
+   * NEW in v2: Read Squarespace's SiteUserInfo cookie.
+   * Returns the parsed object or null if missing/malformed.
+   *
+   * The cookie looks like:
+   *   SiteUserInfo={"authenticated":true,"siteUserId":"...","firstName":"...",...}
+   *
+   * Returns null if:
+   *   - Cookie not present
+   *   - Cookie not valid JSON (malformed)
+   *   - authenticated !== true (logged out)
+   *   - No siteUserId (unexpected shape)
+   */
+  function readSiteUserInfoCookie() {
+    try {
+      const cookies = cookieMap();
+      const raw = cookies["SiteUserInfo"];
+      if (!raw) return null;
+
+      const info = JSON.parse(raw);
+      if (!info || info.authenticated !== true) return null;
+      if (!info.siteUserId) return null;
+
+      return {
+        siteUserId:         String(info.siteUserId),
+        firstName:          info.firstName || null,
+        lastAuthenticatedOn: info.lastAuthenticatedOn || null,
+      };
+    } catch {
+      // Malformed JSON, URI decode failure, etc. — bail silently.
+      return null;
+    }
+  }
+
+
+  /* ============================================================
+     IDENTITY
+  ============================================================ */
+
+  /**
    * Try to fetch identity live from Squarespace.
    * Returns identity object or null if not logged in / cookies missing.
+   *
+   * This is the "slow path" — makes an HTTP call to the profile endpoint.
+   * Called when:
+   *   - Fast-path fails (no SiteUserInfo, or uid mismatch, or no token)
+   *   - User explicitly calls getIdentity() for full profile data
+   *     (email, lastName — not in SiteUserInfo cookie)
    */
   async function fetchLiveIdentity() {
     try {
@@ -88,7 +163,7 @@
 
   /**
    * Read identity from localStorage.
-   * 
+   *
    * strict=true  — respects the 7-day expiry (used for readIdentity() public API)
    * strict=false — ignores expiry, uses cache regardless of age (used as last
    *                resort fallback in getIdentity() when live fetch fails, since
@@ -173,7 +248,7 @@
         return null;
       }
 
-      // ✅ FIX: if we know who the current user is, reject tokens from other users
+      // Cross-user token guard: reject tokens from other users
       if (expectedUid && String(payload.uid) !== String(expectedUid)) {
         console.warn(
           "[SCAAuth] Token UID mismatch — cached token belongs to",
@@ -220,24 +295,73 @@
 
   function getToken() {
     if (_tokenPromise) return _tokenPromise;
-    _tokenPromise = (async () => {
 
-      // ✅ FIX: Always resolve identity FIRST so we can validate the token against it.
-      //
-      // Priority:
-      //   1. Live Squarespace identity (crumb cookies) — highest trust
-      //   2. Cached identity (localStorage)            — fallback
-      //   3. Neither available                         — no auth possible
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  FAST PATH (new in v2)                                    ║
+    // ║  ───────────────────────                                  ║
+    // ║  Fully synchronous. Zero network calls.                   ║
+    // ║                                                           ║
+    // ║  If Squarespace's SiteUserInfo cookie is present AND      ║
+    // ║  we have a cached token whose uid matches AND the token   ║
+    // ║  is not expired → return it immediately. This covers the  ║
+    // ║  ~common case of a returning user on their own device.   ║
+    // ║                                                           ║
+    // ║  If any check fails (cookie missing, no cached token,     ║
+    // ║  uid mismatch, token expired) → fall through to the slow  ║
+    // ║  path below. Worst case is identical to v1 behaviour.     ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    const sqspInfo = readSiteUserInfoCookie();
+    if (sqspInfo?.siteUserId) {
+      const fastToken = readToken(sqspInfo.siteUserId);
+      if (fastToken) {
+        // Cache this promise so repeated getToken() calls during the same
+        // page load don't re-parse the cookie.
+        _tokenPromise = Promise.resolve(fastToken);
+
+        // Background: kick off a live identity refresh so the
+        // sca_member_identity cache stays fresh for next visit. Non-blocking
+        // — we don't await it. If the user has changed, the next page load's
+        // fast-path uid check will catch the mismatch.
+        //
+        // Only run if cached identity is missing or older than 24h — no need
+        // to hammer the profile endpoint on every page load.
+        try {
+          const ts = Number(localStorage.getItem(ID_KEY + "_ts") || 0);
+          const stale = !ts || (Date.now() - ts > 24 * 60 * 60 * 1000);
+          if (stale) fetchLiveIdentity().catch(() => {});
+        } catch {}
+
+        return _tokenPromise;
+      }
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  SLOW PATH (v1 behaviour)                                 ║
+    // ║  ────────────────────────                                 ║
+    // ║  Runs when the fast path didn't match — e.g.:             ║
+    // ║   - First visit (no cached token)                         ║
+    // ║   - Token expired                                         ║
+    // ║   - Different user now logged in (uid mismatch)           ║
+    // ║   - SiteUserInfo cookie missing/malformed                 ║
+    // ║   - User logged out (cleared by Squarespace)              ║
+    // ║                                                           ║
+    // ║  Resolves identity live (HTTP call), verifies cached      ║
+    // ║  token if present, otherwise mints a fresh one via        ║
+    // ║  session-start-v2.                                        ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    _tokenPromise = (async () => {
       const identity = await getIdentity();
       if (!identity) return null;
 
       const expectedUid = identity.id || null;
 
-      // Now check for a cached token — but only accept it if the UID matches
+      // Check cache again now that we have the live uid
       const cached = readToken(expectedUid);
       if (cached) return cached;
 
-      // No valid cached token (or it belonged to a different user) — mint fresh
+      // Mint fresh token
       try {
         return await startSession(identity);
       } catch (e) {
@@ -254,7 +378,7 @@
 
 
   /* ============================================================
-     PUBLIC API
+     PUBLIC API  (unchanged from v1)
   ============================================================ */
 
   window.SCAAuth = {
@@ -273,11 +397,12 @@
     },
   };
 
-  // Kick off identity + token resolution immediately so they're
-  // ready by the time page scripts and sca-progress.js need them
-  getIdentity();
+  // Kick off token resolution immediately so it's ready by the time
+  // page scripts and sca-progress.js need it. getIdentity() is no
+  // longer pre-warmed — the fast-path in getToken() doesn't need it,
+  // and it'll be called lazily by the slow path if needed.
   getToken();
 
-  console.log("[SCAAuth] loaded (with cross-user token guard)");
+  console.log("[SCAAuth] v2 loaded (with SiteUserInfo fast-path)");
 
 })();
