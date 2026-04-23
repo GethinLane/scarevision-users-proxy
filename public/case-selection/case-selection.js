@@ -1102,7 +1102,9 @@
   /* ---------- Grid view ---------- */
 
   function renderGridView(topics) {
-    const wrap = h("section", { class: "cx-grid" });
+    // data-kind hooks the CSS to render 3 cols for experience groups (long
+    // names need more room) and 4 cols for clinical topics (short names fit).
+    const wrap = h("section", { class: "cx-grid", "data-kind": state.kind });
     for (const t of topics) {
       const pct = t.n ? Math.round((t.d / t.n) * 100) : 0;
       const remaining = t.n - t.d;
