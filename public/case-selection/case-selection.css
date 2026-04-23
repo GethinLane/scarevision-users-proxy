@@ -123,9 +123,17 @@
   font-family: "Poppins", sans-serif; font-size: clamp(28px, 3.5vw, 36px); font-weight: 600;
   line-height: 1.12; letter-spacing: -0.02em; color: #fff; margin: 0;
 }
-.cx-root .cx-hero-accent {
+/* Dynamic mode word in the hero title — styled like a serif italic accent.
+   The word ("written" / "videos" / "AI" etc.) reflects the active filter
+   mode so the hero stays in sync with what's being browsed.
+   Colour stays peri for all modes for now — video needs its own palette
+   treatment (whole-page shift) when that's scoped, and AI gets plum when
+   built. Single-colour for now avoids committing to colour tokens that
+   might change. */
+.cx-root .cx-hero-mode {
   font-family: "DM Serif Display", serif; font-weight: 400; font-style: italic;
-  color: var(--cx-peri); letter-spacing: -0.01em; font-size: 1.05em;
+  color: var(--cx-peri);
+  letter-spacing: -0.01em; font-size: 1.05em;
 }
 .cx-root .cx-hero-sub { font-size: 15px; color: var(--cx-peri-mute); margin: 0; line-height: 1.45; }
 .cx-root .cx-hero-sub b { color: var(--cx-paper-3); font-weight: 600; font-family: "DM Serif Display", serif; font-size: 18px; letter-spacing: 0; }
