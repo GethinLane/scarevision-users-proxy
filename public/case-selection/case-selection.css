@@ -382,7 +382,7 @@
   background: transparent; border: 0; font: inherit; color: inherit;
   width: 100%; cursor: pointer; text-align: left;
 }
-.cx-root .cx-row-head:hover { background: var(--cx-paper); }
+.cx-root .cx-row-head:hover { background: var(--cx-peri-soft); }
 .cx-root .cx-row.open .cx-row-head { background: var(--cx-ink); color: #fff; }
 .cx-root .cx-row-chevron {
   font-size: 20px; color: var(--cx-muted); font-weight: 300;
@@ -456,7 +456,7 @@
   background: transparent; transition: background .15s;
   text-decoration: none; color: inherit;
 }
-.cx-root .cx-case:hover { background: #fff; }
+.cx-root .cx-case:hover { background: var(--cx-peri-soft); }
 .cx-root .cx-case-check {
   width: 18px; height: 18px; border-radius: 4px;
   border: 1.5px solid var(--cx-rule-2); background: #fff;
@@ -818,7 +818,7 @@
   font-family: "Poppins", sans-serif; font-size: 15px; color: var(--cx-ink, #253551);
 }
 .cx-drawer-cases .cx-case:nth-child(even) { border-right: 0; }
-.cx-drawer-cases .cx-case:hover { background: var(--cx-paper, #f6f8fc); }
+.cx-drawer-cases .cx-case:hover { background: var(--cx-peri-soft, #e9f0fb); }
 
 /* Re-apply case-internal styles inside drawer (since it's outside .cx-root) */
 .cx-drawer-cases .cx-case-check {
@@ -1134,7 +1134,7 @@
   transition: background .15s ease;
 }
 .cx-root .cx-recent-summary::-webkit-details-marker { display: none; }
-.cx-root .cx-recent-summary:hover { background: var(--cx-paper); }
+.cx-root .cx-recent-summary:hover { background: var(--cx-peri-soft); }
 .cx-root .cx-recent-chev {
   font-size: 13px;
   color: var(--cx-muted);
@@ -1158,7 +1158,7 @@
   transition: background .12s ease;
   min-width: 0;
 }
-.cx-root .cx-recent-list li:hover { background: var(--cx-paper); }
+.cx-root .cx-recent-list li:hover { background: var(--cx-peri-soft); }
 .cx-root .cx-recent-list li::before {
   content: counter(recent-counter);
   font-family: "JetBrains Mono", monospace;
