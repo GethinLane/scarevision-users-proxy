@@ -493,7 +493,7 @@
       ),
       h("div", { class: "cx-hero-right" },
         h("a", {
-          href: "/cases-how-to",
+          href: "/cases-howtouse",
           class: "cx-btn cx-btn-ghost",
           title: "How to use this page",
         },
