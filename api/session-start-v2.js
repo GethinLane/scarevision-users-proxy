@@ -75,6 +75,23 @@ function safeParseCompleted(s) {
   }
 }
 
+// ★ NEW: Slug-keyed guide map.
+function safeParseGuides(s) {
+  try {
+    const v = JSON.parse(s || "{}");
+    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+    const out = {};
+    for (const k of Object.keys(v)) {
+      const slug = String(k).trim();
+      if (!slug) continue;
+      out[slug] = typeof v[k] === "string" ? v[k] : null;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 function completedMapToArray(map) {
   return Object.keys(map)
     .map(Number)
@@ -142,8 +159,15 @@ export default async function handler(req, res) {
 
     const flaggedRaw = rec?.fields?.FlaggedCasesJson;
     const completedRaw = rec?.fields?.CompletedCasesJson;
+    // ★ NEW: also pick up the guides field — initialised below if missing.
+    const guidesRaw = rec?.fields?.CompletedGuidesJson;
 
-    const needsDefaults = typeof flaggedRaw !== "string" || typeof completedRaw !== "string";
+    // ★ MODIFIED: include CompletedGuidesJson in the "needs defaults" check
+    //   so the field is auto-initialised on first login post-deployment.
+    const needsDefaults =
+      typeof flaggedRaw !== "string" ||
+      typeof completedRaw !== "string" ||
+      typeof guidesRaw !== "string";
 
     if (needsDefaults) {
       await airtableRequest({
@@ -155,6 +179,8 @@ export default async function handler(req, res) {
           fields: {
             FlaggedCasesJson: typeof flaggedRaw === "string" ? flaggedRaw : "[]",
             CompletedCasesJson: typeof completedRaw === "string" ? completedRaw : "[]",
+            // ★ NEW: empty object literal is the canonical "no guides read yet" value.
+            CompletedGuidesJson: typeof guidesRaw === "string" ? guidesRaw : "{}",
           },
         },
       });
@@ -171,12 +197,17 @@ export default async function handler(req, res) {
     const completedParsed = safeParseCompleted(
       typeof completedRaw === "string" ? completedRaw : "{}"
     );
+    // ★ NEW: parse guides too, so the seeded cache has them on first load.
+    const guidesParsed = safeParseGuides(
+      typeof guidesRaw === "string" ? guidesRaw : "{}"
+    );
 
     await kvWrite(uid, {
       recordId,
       flagged: flaggedParsed,
       completed: completedMapToArray(completedParsed),
       completedDates: completedParsed,
+      completedGuides: guidesParsed, // ★ NEW
     });
 
     // ✅ signed session token (14 days)
