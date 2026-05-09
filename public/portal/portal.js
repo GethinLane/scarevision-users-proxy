@@ -54,7 +54,7 @@
     const avatar = document.getElementById("ccAvatar");
     const first = (identity?.firstName || "").trim();
     if (first) {
-      nameEl.textContent = `, ${first}`;
+      nameEl.innerHTML = `, <em class="cc-italic">${escapeHtml(first)}.</em>`;
       if (avatar) avatar.textContent = first.charAt(0).toUpperCase();
     } else {
       nameEl.textContent = "";
@@ -145,6 +145,14 @@
       renderCasesDone(live.completed || []);
       renderStreak(computeStreak(live.completedDates));
       updateGreetingSub();
+
+      // If the auto-picked case has actually been completed (only revealed
+      // once live progress arrives), swap it for one the user hasn't done.
+      const done = new Set((live.completed || []).map(Number).filter(Number.isFinite));
+      if (typeof currentPickId === "number" && done.has(currentPickId)) {
+        currentPickId = pickRandomCaseId();
+        renderTodaysPick(currentPickId);
+      }
     });
   })();
 
@@ -161,7 +169,31 @@
   setTimeout(updateGreetingSub, 400);
 
   // ----- Today's pick -----
-  function pickRandomCaseId() { return Math.floor(Math.random() * TOTAL_CASES_FOR_RANDOM) + 1; }
+  function getCompletedSet() {
+    const prog = readCachedProgress();
+    return new Set((prog?.completed || []).map(Number).filter(Number.isFinite));
+  }
+  function pickRandomCaseId() {
+    const done = getCompletedSet();
+    // If everything is done, fall back to any case rather than freezing.
+    if (done.size >= TOTAL_CASES_FOR_RANDOM) {
+      return Math.floor(Math.random() * TOTAL_CASES_FOR_RANDOM) + 1;
+    }
+    // Cheap path: rejection sampling. Fast when most cases remain.
+    for (let i = 0; i < 50; i++) {
+      const id = Math.floor(Math.random() * TOTAL_CASES_FOR_RANDOM) + 1;
+      if (!done.has(id)) return id;
+    }
+    // Slow path: enumerate remaining and pick uniformly. Kicks in when
+    // the user has completed almost everything.
+    const remaining = [];
+    for (let id = 1; id <= TOTAL_CASES_FOR_RANDOM; id++) {
+      if (!done.has(id)) remaining.push(id);
+    }
+    return remaining.length
+      ? remaining[Math.floor(Math.random() * remaining.length)]
+      : Math.floor(Math.random() * TOTAL_CASES_FOR_RANDOM) + 1;
+  }
 
   function renderTodaysPick(id) {
     const startLink = document.getElementById("ccPickStartLink");
@@ -190,15 +222,22 @@
       ? window.SCA_CASE_MAP.find(r => Number(r.id) === Number(id))
       : null;
 
+    // Multi-select fields can arrive as either an array or a comma-joined
+    // string — only ever show the first entry.
+    const firstEntry = (val) => {
+      if (Array.isArray(val)) return (val[0] ?? "").toString().trim();
+      if (typeof val === "string") return val.split(",")[0].trim();
+      return "";
+    };
+
     if (mapRow) {
-      title.textContent = mapRow.name;
-      const topic = (mapRow.topics || [])[0];
-      const group = (mapRow.groups || [])[0];
+      title.textContent = mapRow.presentingComplaint || mapRow.name || "";
+      const topic = firstEntry(mapRow.topics);
+      const group = firstEntry(mapRow.groups);
       blurb.textContent = topic
         ? `A random case from the ${topic} topic — good for keeping yourself sharp.`
         : `A random case from across the full collection — good for keeping yourself sharp.`;
       meta.innerHTML = [
-        `<span class="cc-tag"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg> Random case</span>`,
         topic ? `<span class="cc-tag cc-tag-ghost">${escapeHtml(topic)}</span>` : "",
         group ? `<span class="cc-tag cc-tag-ghost">${escapeHtml(group)}</span>` : "",
       ].filter(Boolean).join("");
@@ -223,14 +262,6 @@ const START_MODES = {
 solo: {
   sub: "Read, watch, or consult with an AI patient.",
   render: () => `
-    <a href="https://www.scarevision.ai/members-portal" class="cc-start-ai-hero">
-      <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-brain-circuit"></i></span>
-      <span class="cc-start-hero-body">
-        <span class="cc-start-hero-t">Practise with an AI patient <span class="cc-start-hero-pill">Credits</span></span>
-        <span class="cc-start-hero-s">A simulated consultation that responds to your questions.</span>
-      </span>
-      <i class="fa-sharp fa-light fa-arrow-right cc-start-hero-arrow"></i>
-    </a>
     <a href="/case-selection" class="cc-start-tile">
       <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-book-open-reader"></i></span>
       <span class="cc-start-tile-body">
@@ -244,6 +275,14 @@ solo: {
       <span class="cc-start-tile-body">
         <span class="cc-start-tile-t">Watch a consultation</span>
         <span class="cc-start-tile-s">Example videos with commentary.</span>
+      </span>
+      <span class="cc-start-tile-arrow"><i class="fa-sharp fa-light fa-arrow-right"></i></span>
+    </a>
+    <a href="https://www.scarevision.ai/members-portal" class="cc-start-tile">
+      <span class="cc-start-tile-ic"><i class="fa-sharp fa-light fa-comment-medical"></i></span>
+      <span class="cc-start-tile-body">
+        <span class="cc-start-tile-t">Consult an AI patient</span>
+        <span class="cc-start-tile-s">A simulated consultation on our sister site.</span>
       </span>
       <span class="cc-start-tile-arrow"><i class="fa-sharp fa-light fa-arrow-right"></i></span>
     </a>
@@ -540,7 +579,7 @@ rail.innerHTML = items.map((it, i) => `
   const RANDOM_CASE_BASE = "/casev2?case=";
   function goRandomCase(e) {
     if (e) e.preventDefault();
-    const n = Math.floor(Math.random() * TOTAL_CASES_FOR_RANDOM) + 1;
+    const n = pickRandomCaseId();
     window.location.href = `${RANDOM_CASE_BASE}${n}&examcase`;
   }
   document.addEventListener("click", function (e) {
@@ -548,6 +587,56 @@ rail.innerHTML = items.map((it, i) => `
     if (!el) return;
     goRandomCase(e);
   });
+
+  // ----- Editorial layout overrides (dividers, italics, tile copy, bento prune) -----
+  (function applyEditorialOverrides() {
+    function insertColRule(beforeEl, label) {
+      if (!beforeEl) return;
+      // Don't double-insert
+      if (beforeEl.previousElementSibling?.classList?.contains("cc-col-rule")) return;
+      const rule = document.createElement("div");
+      rule.className = "cc-col-rule";
+      rule.textContent = label;
+      beforeEl.parentNode.insertBefore(rule, beforeEl);
+    }
+    function italicizeAiTitle() {
+      const h2 = document.querySelector(".cc-ai-feature-left h2");
+      if (!h2 || h2.querySelector(".cc-italic, em")) return;
+      // Replace "AI Patients" (and trailing punctuation) with serif-italic span
+      const html = h2.innerHTML.replace(
+        /AI Patients\.?/,
+        '<em class="cc-italic">AI Patients.</em>'
+      );
+      if (html !== h2.innerHTML) h2.innerHTML = html;
+    }
+    function updateAiMarkingTile() {
+      const tiles = document.querySelectorAll(".cc-ai-feature-tile");
+      tiles.forEach(tile => {
+        const t = tile.querySelector(".cc-ai-feature-tile-t");
+        if (t && /AI\s*Marking/i.test(t.textContent || "")) {
+          const sub = tile.querySelector(".cc-ai-feature-tile-n");
+          if (sub) sub.textContent = "Learn more about how to use AI marking";
+        }
+      });
+    }
+    function removeAiToolsBentoCard() {
+      // The dedicated AI category card in the lower bento — we now have the
+      // big AI feature strip above, so this row is redundant.
+      document.querySelectorAll(".cc-bento .cc-cat-ai").forEach(el => el.remove());
+    }
+    function run() {
+      insertColRule(document.querySelector(".cc-hero"), "No. 01 · Today's desk");
+      insertColRule(document.querySelector(".cc-bento"), "No. 02 · Library");
+      italicizeAiTitle();
+      updateAiMarkingTile();
+      removeAiToolsBentoCard();
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run, { once: true });
+    } else {
+      run();
+    }
+  })();
 
   // ----- Random AI patient (preserved with excluded set) -----
   const AI_CASE_COUNT = 355;
