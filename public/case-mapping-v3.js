@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return {
           id,
           name,
+          presentingComplaint: String(f["Presenting Complaint"] || "").trim(),
           groups: asArray(f["Domain"] ?? f["Themes"]),  // pick the right one
           topics: asArray(f["Clinical Topics"]),
         };
