@@ -138,6 +138,24 @@ function safeParseCompleted(s) {
   }
 }
 
+// ★ NEW: Slug-keyed guide map. Same shape as safeParseCompleted but for guides.
+//   Returns { "slug-string": "ISO-date-string-or-null", ... }
+function safeParseGuides(s) {
+  try {
+    const v = JSON.parse(s || "{}");
+    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+    const out = {};
+    for (const k of Object.keys(v)) {
+      const slug = String(k).trim();
+      if (!slug) continue;
+      out[slug] = typeof v[k] === "string" ? v[k] : null;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 function completedMapToArray(map) {
   return Object.keys(map)
     .map(Number)
@@ -165,6 +183,9 @@ export default async function handler(req, res) {
         flagged: cached.flagged,
         completed: cached.completed,
         completedDates: cached.completedDates || {},
+        // ★ NEW: surface guide progress to clients. Defaults to {} for old
+        // cache entries written before guide tracking existed.
+        completedGuides: cached.completedGuides || {},
       });
     }
 
@@ -194,6 +215,9 @@ export default async function handler(req, res) {
     const flagged = safeParseList(record.fields?.FlaggedCasesJson);
     const completedMap = safeParseCompleted(record.fields?.CompletedCasesJson);
     const completed = completedMapToArray(completedMap);
+    // ★ NEW: read guide progress from Airtable. Field is auto-initialised
+    //   by session-start-v2 the first time a user logs in post-deployment.
+    const completedGuides = safeParseGuides(record.fields?.CompletedGuidesJson);
 
     // Seed the cache so the next request is fast
     await kvWrite(userId, {
@@ -201,6 +225,7 @@ export default async function handler(req, res) {
       flagged,
       completed,
       completedDates: completedMap,
+      completedGuides, // ★ NEW
     });
 
     return send(req, res, 200, {
@@ -208,6 +233,7 @@ export default async function handler(req, res) {
       flagged,
       completed,
       completedDates: completedMap,
+      completedGuides, // ★ NEW
     });
   } catch (err) {
     return send(req, res, 401, { ok: false, error: err.message || "Unauthorized" });
