@@ -138,12 +138,33 @@ function safeParseCompleted(s) {
   }
 }
 
+// ★ NEW: Slug-keyed guide map.
+function safeParseGuides(s) {
+  try {
+    const v = JSON.parse(s || "{}");
+    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+    const out = {};
+    for (const k of Object.keys(v)) {
+      const slug = String(k).trim();
+      if (!slug) continue;
+      out[slug] = typeof v[k] === "string" ? v[k] : null;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 function completedMapToArray(map) {
   return Object.keys(map)
     .map(Number)
     .filter(Number.isFinite)
     .sort((a, b) => a - b);
 }
+
+// ★ NEW: Guide slugs are author-defined strings. Reject anything weird before
+// it lands in Airtable. Permissive but safe — alphanumerics + hyphens only.
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/i;
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -155,11 +176,29 @@ export default async function handler(req, res) {
   try {
     const userId = verifySession(req);
 
-    const { caseId, action } = req.body || {};
-    const cid = Number(caseId);
-    if (!Number.isFinite(cid)) return send(req, res, 400, { ok: false, error: "Bad caseId" });
+    // ★ NEW: Request can target a case (caseId + action) OR a guide
+    // (slug + action). Exactly one must be present. Old clients sending
+    // only { caseId, action } work unchanged.
+    const { caseId, slug, action } = req.body || {};
+    const hasCase = caseId !== undefined && caseId !== null && caseId !== "";
+    const hasSlug = typeof slug === "string" && slug.trim() !== "";
+    if (hasCase === hasSlug) {
+      return send(req, res, 400, { ok: false, error: "Provide exactly one of caseId or slug" });
+    }
 
-    const allowed = new Set(["flag", "unflag", "complete", "uncomplete"]);
+    let cid = null;
+    let cleanSlug = null;
+    let allowed;
+    if (hasCase) {
+      cid = Number(caseId);
+      if (!Number.isFinite(cid)) return send(req, res, 400, { ok: false, error: "Bad caseId" });
+      allowed = new Set(["flag", "unflag", "complete", "uncomplete"]);
+    } else {
+      cleanSlug = slug.trim();
+      if (!SLUG_RE.test(cleanSlug)) return send(req, res, 400, { ok: false, error: "Bad slug" });
+      // Guides have no "flag" concept — only complete/uncomplete.
+      allowed = new Set(["complete", "uncomplete"]);
+    }
     if (!allowed.has(action)) return send(req, res, 400, { ok: false, error: "Bad action" });
 
     const token = process.env.AIRTABLE_USERS_TOKEN;
@@ -211,25 +250,33 @@ export default async function handler(req, res) {
     const recordId = record.id;
     const flagged = safeParseList(record.fields?.FlaggedCasesJson);
     const completedMap = safeParseCompleted(record.fields?.CompletedCasesJson);
+    // ★ NEW: read guide progress alongside cases.
+    const completedGuides = safeParseGuides(record.fields?.CompletedGuidesJson);
 
     // ================================================================
     // Apply the mutation
     // ================================================================
     const flaggedSet = new Set(flagged);
 
-    if (action === "flag") flaggedSet.add(cid);
-    if (action === "unflag") flaggedSet.delete(cid);
-    if (action === "complete") completedMap[String(cid)] = new Date().toISOString();
-    if (action === "uncomplete") delete completedMap[String(cid)];
+    // ★ MODIFIED: branch on case vs guide. Cases path is unchanged from v2.
+    const fields = {};
+    if (hasCase) {
+      if (action === "flag") flaggedSet.add(cid);
+      if (action === "unflag") flaggedSet.delete(cid);
+      if (action === "complete") completedMap[String(cid)] = new Date().toISOString();
+      if (action === "uncomplete") delete completedMap[String(cid)];
+      fields.FlaggedCasesJson = JSON.stringify(Array.from(flaggedSet).sort((a, b) => a - b));
+      fields.CompletedCasesJson = JSON.stringify(completedMap);
+    } else {
+      // ★ NEW: guide branch. Only touches CompletedGuidesJson.
+      if (action === "complete") completedGuides[cleanSlug] = new Date().toISOString();
+      if (action === "uncomplete") delete completedGuides[cleanSlug];
+      fields.CompletedGuidesJson = JSON.stringify(completedGuides);
+    }
+    fields.LastSeen = new Date().toISOString();
 
     const finalFlagged = Array.from(flaggedSet).sort((a, b) => a - b);
     const finalCompleted = completedMapToArray(completedMap);
-
-    const fields = {
-      FlaggedCasesJson: JSON.stringify(finalFlagged),
-      CompletedCasesJson: JSON.stringify(completedMap),
-      LastSeen: new Date().toISOString(),
-    };
 
     // Write to Airtable (source of truth) FIRST
     await airtableRequest({
@@ -247,6 +294,7 @@ export default async function handler(req, res) {
       flagged: finalFlagged,
       completed: finalCompleted,
       completedDates: completedMap,
+      completedGuides, // ★ NEW
     });
 
     return send(req, res, 200, {
@@ -254,6 +302,7 @@ export default async function handler(req, res) {
       flagged: finalFlagged,
       completed: finalCompleted,
       completedDates: completedMap,
+      completedGuides, // ★ NEW
     });
   } catch (err) {
     return send(req, res, 401, { ok: false, error: err.message || "Unauthorized" });
