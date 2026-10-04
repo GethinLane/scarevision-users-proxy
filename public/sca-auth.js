@@ -1,5 +1,5 @@
 /**
- * sca-auth.js — v2 with SiteUserInfo fast-path
+ * sca-auth.js — v3 with membership reporting
  * =============================================
  * Handles all identity and session token logic.
  * Must be loaded before sca-progress.js and any page scripts.
@@ -377,13 +377,125 @@
   }
 
 
+  /* Membership reporting is independent of the cached session-token fast path.
+     Squarespace cookies remain untouched. This is our own last-observed snapshot. */
+  const MEMBERSHIP_KEY = "sca_member_membership";
+  const MEMBERSHIP_COOKIE = "sca_membership";
+  const MEMBERSHIP_REFRESH_MS = 6 * 60 * 60 * 1000;
+  let _membershipPromise = null;
+  let _membershipMemory = null;
+
+  function readMembership() {
+    const uid = readSiteUserInfoCookie()?.siteUserId;
+    if (!uid) return null;
+    try {
+      const value = _membershipMemory || JSON.parse(localStorage.getItem(MEMBERSHIP_KEY) || "null");
+      if (value?.userId === uid && ["Standard", "Premium", "Inactive"].includes(value.tier) &&
+          Number.isFinite(Date.parse(value.checkedAt))) {
+        return { ...value, stale: Date.now() - Date.parse(value.checkedAt) >= MEMBERSHIP_REFRESH_MS };
+      }
+    } catch {}
+    // Small cookie remains useful if localStorage is unavailable. Plan details
+    // are deliberately kept out of cookies; a fresh request rebuilds them.
+    try {
+      const value = JSON.parse(cookieMap()[MEMBERSHIP_COOKIE] || "null");
+      if (value?.userId === uid && ["Standard", "Premium", "Inactive"].includes(value.tier) &&
+          Number.isFinite(Date.parse(value.checkedAt))) return { ...value, stale: true };
+    } catch {}
+    return null;
+  }
+
+  function saveMembership(value) {
+    if (readSiteUserInfoCookie()?.siteUserId !== value.userId) return false;
+    _membershipMemory = value;
+    try { localStorage.setItem(MEMBERSHIP_KEY, JSON.stringify(value)); } catch {}
+    try {
+      const summary = { userId: value.userId, tier: value.tier, checkedAt: value.checkedAt };
+      document.cookie = `${MEMBERSHIP_COOKIE}=${encodeURIComponent(JSON.stringify(summary))}; Path=/; Max-Age=1209600; SameSite=Lax; Secure`;
+    } catch {}
+    return true;
+  }
+
+  // Kept in step with lib/membership.js; the server independently classifies plans.
+  function classifyMembership(plans) {
+    if (!Array.isArray(plans)) return null;
+    if (!plans.length) return "Inactive";
+    const kinds = plans.map(plan => {
+      const name = plan.name.toLowerCase().replace(/[–—]/g, "-");
+      if (/\bpremium\b/.test(name)) return "premium";
+      if (plan.id === "c69a0c75-9191-48d0-a5ac-9bdf787b78b2" ||
+          (/\bvideos?\b/.test(name) && /\badd[ -]?on\b/.test(name))) return "video";
+      if (plan.id === "f0eded04-1713-4d74-bdd0-aa75bc9543b5" ||
+          /\bstandard\b/.test(name)) return "standard";
+      return "unknown";
+    });
+    if (kinds.includes("premium") || (kinds.includes("standard") && kinds.includes("video"))) return "Premium";
+    if (kinds.includes("standard") && !kinds.includes("unknown")) return "Standard";
+    return null; // Unrecognised plans must never silently downgrade an existing result.
+  }
+
+  async function refreshMembership(token, force) {
+    const uid = readSiteUserInfoCookie()?.siteUserId;
+    if (!uid || !token || decodeTokenPayload(token)?.uid !== uid) return null;
+    let membership = readMembership();
+    const fresh = membership && !membership.stale && Array.isArray(membership.plans);
+    if (force || !fresh) {
+      try {
+        const response = await fetch("/account/frame", {
+          credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(8000),
+        });
+        if (!response.ok) throw new Error("Account unavailable");
+        const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+        const bootstrap = JSON.parse(doc.querySelector("#bootstrap-data")?.textContent || "null");
+        const active = bootstrap?.pricingPlans?.activePricingPlans;
+        if (bootstrap?.userProfile?.id !== uid || !Array.isArray(active)) throw new Error("Account mismatch or missing plans");
+        if (active.length > 30 || active.some(p => p.isActive !== true ||
+            typeof p.pricingPlanName !== "string" || !p.pricingPlanName.trim())) throw new Error("Unexpected plan format");
+        const plans = active.map(p => ({ id: String(p.pricingPlanId || p.id || ""), name: p.pricingPlanName.trim() }));
+        const tier = classifyMembership(plans);
+        if (!tier) throw new Error("Unrecognised plans");
+        membership = { userId: uid, tier, plans, checkedAt: new Date().toISOString(), syncedAt: null };
+        if (!saveMembership(membership)) return null;
+      } catch {
+        // A timeout, logged-out response or new Squarespace format is not a downgrade.
+        membership = readMembership();
+      }
+    }
+    if (membership && !membership.syncedAt && Array.isArray(membership.plans) &&
+        readSiteUserInfoCookie()?.siteUserId === uid) {
+      try {
+        const response = await fetch(`${PROXY_BASE}/api/membership-sync`, {
+          method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ membership }), signal: AbortSignal.timeout(10000),
+        });
+        const result = await response.json();
+        if (response.ok && result.ok) saveMembership({ ...membership, syncedAt: new Date().toISOString() });
+      } catch {} // Keep the unsynced snapshot; retry on the next page load.
+    }
+    return readMembership();
+  }
+
+  function getMembership(options) {
+    if (_membershipPromise) return _membershipPromise;
+    _membershipPromise = (async () => {
+      try { return await refreshMembership(await getToken(), !!options?.force); }
+      catch { return readMembership(); }
+    })().finally(() => { _membershipPromise = null; });
+    return _membershipPromise;
+  }
+
+
   /* ============================================================
-     PUBLIC API  (unchanged from v1)
+     PUBLIC API  (existing methods preserved)
   ============================================================ */
 
   window.SCAAuth = {
     /** Async — resolves to identity object or null */
     getIdentity: getIdentity,
+
+    /** Last-observed membership, bound to the current Squarespace account. */
+    readMembership: readMembership,
+    getMembership: getMembership,
 
     /** Async — resolves to signed token string or null */
     getToken: getToken,
@@ -402,7 +514,8 @@
   // longer pre-warmed — the fast-path in getToken() doesn't need it,
   // and it'll be called lazily by the slow path if needed.
   getToken();
+  getMembership();
 
-  console.log("[SCAAuth] v2 loaded (with SiteUserInfo fast-path)");
+  console.log("[SCAAuth] v3 loaded (with membership reporting)");
 
 })();
