@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { classifyMembership, normalizeMembership } from '../lib/membership.js';
 import handler from '../api/membership-sync.js';
+import sessionStart from '../api/session-start-v2.js';
 
 const source = readFileSync(new URL('../public/sca-auth.js', import.meta.url), 'utf8');
 const plan = name => ({ id: name, name });
@@ -107,7 +108,7 @@ test('account switching during request cannot store or send the old account snap
   assert.equal(await b.api.getMembership(),null); assert.equal(b.storage.has('sca_member_membership'),false);
   assert.equal(b.calls.filter(c=>c.url.endsWith('/membership-sync')).length,0);
 });
-test('failed Airtable sync leaves a retryable local snapshot', async () => {
+test('failed sync leaves a retryable local snapshot', async () => {
   const b=browser({failSync:true}); const result=await b.api.getMembership();
   assert.equal(result.tier,'Standard'); assert.equal(result.syncedAt,null);
   const c=browser({cached:JSON.parse(b.storage.get('sca_member_membership'))}); await c.api.getMembership();
@@ -120,19 +121,21 @@ test('storage failure still allows cookie storage and sync', async () => {
 });
 
 process.env.SCA_SESSION_SECRET=secret;
-process.env.AIRTABLE_USERS_TOKEN='test-airtable-token';
-process.env.AIRTABLE_USERS_BASE_ID='app-test';
-process.env.AIRTABLE_USERS_TABLE='tbl-test';
-async function request({membership=snapshot(),auth=token(),origin='https://www.scarevision.co.uk',method='POST',previous,fail=false}={}) {
-  const requests=[];
-  const oldFetch=globalThis.fetch;
-  globalThis.fetch=async (url,options)=>{
-    requests.push({url,options});
-    return {ok:!fail,json:async()=> options.method==='GET'?{records:[{id:'rec-test',fields:{MembershipCheckedAt:previous}}]}:{id:'rec-test'}};
-  };
-  const res={headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(v){this.body=v;return this;},end(){return this;}};
-  try { await handler({method,headers:{origin,authorization:`Bearer ${auth}`},body:{membership}},res); }
-  finally {globalThis.fetch=oldFetch;}
+const platform='https://ai.test.invalid';
+const reportSecret='test-report-secret-with-at-least-32-characters';
+process.env.AI_PLATFORM_URL=platform;
+process.env.MAIN_SITE_REPORT_SECRET=reportSecret;
+const response=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(v){this.body=v;return this;},end(){return this;}});
+async function withFetch(fake,callback){
+  const requests=[]; const oldFetch=globalThis.fetch;
+  globalThis.fetch=async(url,options={})=>{requests.push({url:String(url),options}); return fake(String(url),options);};
+  try { await callback(); } finally { globalThis.fetch=oldFetch; }
+  return requests;
+}
+async function request({membership=snapshot(),auth=token(),origin='https://www.scarevision.co.uk',method='POST',status=200,result='recorded',fail=false}={}) {
+  const res=response();
+  const requests=await withFetch(async()=>{ if(fail) throw new Error('network'); return {ok:status<300,status,json:async()=>({ok:status<300,result})}; },
+    ()=>handler({method,headers:{origin,authorization:`Bearer ${auth}`},body:{membership}},res));
   return {res,requests};
 }
 test('endpoint requires signed current session, allowed origin and matching user',async()=>{
@@ -140,20 +143,51 @@ test('endpoint requires signed current session, allowed origin and matching user
     const {res,requests}=await request(opts); assert.ok([401,403,422].includes(res.code)); assert.equal(requests.length,0);
   }
 });
-test('endpoint only updates three membership fields on an existing account',async()=>{
+test('endpoint sends only the recalculated membership to the AI platform, never Airtable',async()=>{
   const {res,requests}=await request({membership:snapshot(['Premium'],{tier:'Standard'})});
-  assert.equal(res.code,200); const fields=JSON.parse(requests[1].options.body).fields;
-  assert.deepEqual(Object.keys(fields).sort(),['MembershipCheckedAt','MembershipPlansJson','MembershipTier']);
-  assert.equal(fields.MembershipTier,'Premium');
+  assert.equal(res.code,200); assert.equal(requests.length,1);
+  assert.equal(requests[0].url,`${platform}/api/main-site/report`);
+  assert.equal(requests[0].options.headers.Authorization,`Bearer ${reportSecret}`);
+  const body=JSON.parse(requests[0].options.body);
+  assert.deepEqual(Object.keys(body).sort(),['checkedAt','plans','squarespaceUserId','tier','type']);
+  assert.equal(body.type,'membership'); assert.equal(body.tier,'Premium'); assert.equal(body.squarespaceUserId,'user-a');
 });
-test('old snapshots never replace a newer Airtable check',async()=>{
-  const {res,requests}=await request({previous:new Date(Date.now()+60000).toISOString()});
-  assert.equal(res.code,200);assert.equal(requests.length,1);
+test('an older snapshot is acknowledged once the platform holds a newer one',async()=>{
+  const {res}=await request({result:'older'}); assert.equal(res.code,200);
+});
+test('a member the main site has not recorded yet is a retryable conflict',async()=>{
+  const {res}=await request({status:409,result:'unknown_member'}); assert.equal(res.code,409); assert.equal(res.body.ok,false);
 });
 test('storage outage returns failure rather than acknowledging a lost write',async()=>{
-  const {res}=await request({fail:true});assert.equal(res.code,502);assert.equal(res.body.ok,false);
+  for (const opts of [{fail:true},{status:503}]) { const {res}=await request(opts); assert.equal(res.code,502); assert.equal(res.body.ok,false); }
 });
-test('CORS preflight accepts bearer header without touching Airtable',async()=>{
+test('missing platform configuration fails closed without sending anything',async()=>{
+  delete process.env.MAIN_SITE_REPORT_SECRET;
+  try { const {res,requests}=await request(); assert.equal(res.code,503); assert.equal(requests.length,0); }
+  finally { process.env.MAIN_SITE_REPORT_SECRET=reportSecret; }
+});
+test('CORS preflight accepts bearer header without contacting storage',async()=>{
   const {res,requests}=await request({method:'OPTIONS',auth:''});assert.equal(res.code,204);assert.equal(requests.length,0);
   assert.match(res.headers['Access-Control-Allow-Headers'],/Authorization/);
+});
+test('main-site sign-in records the member on the AI platform and still signs in if that fails',async()=>{
+  process.env.AIRTABLE_USERS_TOKEN='test-airtable-token';
+  process.env.AIRTABLE_USERS_BASE_ID='app-test';
+  process.env.AIRTABLE_USERS_TABLE='tbl-test';
+  for (const platformUp of [true,false]) {
+    const res=response();
+    const requests=await withFetch(async(url,options)=>{
+      if(url.startsWith(platform)) { if(!platformUp) throw new Error('down'); return {ok:true,status:200,json:async()=>({ok:true,result:'recorded'})}; }
+      if(url.includes('api.airtable.com')) {
+        const data=options.method==='PATCH'&&!url.includes('/rec-1')
+          ?{records:[{id:'rec-1'}]}:{id:'rec-1',fields:{FlaggedCasesJson:'[]',CompletedCasesJson:'{}',CompletedGuidesJson:'{}'}};
+        return {ok:true,status:200,text:async()=>JSON.stringify(data),json:async()=>data};
+      }
+      return {ok:true,status:200,json:async()=>({result:'OK'})};
+    }, ()=>sessionStart({method:'POST',headers:{origin:'https://www.scarevision.co.uk'},body:{squarespaceUserId:'user-a',email:' Member@Test.invalid ',firstName:'Ann',lastName:'Lee'}},res));
+    assert.equal(res.code,200); assert.equal(res.body.ok,true); assert.ok(res.body.token);
+    const sent=requests.find(r=>r.url===`${platform}/api/main-site/report`);
+    assert.ok(sent);
+    assert.deepEqual(JSON.parse(sent.options.body),{type:'member',squarespaceUserId:'user-a',email:'member@test.invalid',firstName:'Ann',lastName:'Lee'});
+  }
 });

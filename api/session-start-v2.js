@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { kvWrite } from "../lib/progress-kv.js";
+import { platformReportingConfigured, reportToPlatform } from "../lib/platform-report.js";
 
 const ALLOWED_ORIGINS = ["https://www.scarevision.co.uk", "https://scarevision.co.uk"];
 
@@ -209,6 +210,21 @@ export default async function handler(req, res) {
       completedDates: completedParsed,
       completedGuides: guidesParsed, // ★ NEW
     });
+
+    // Record the member in Supabase (via the AI platform) so the AI site can
+    // link accounts and price credit packs without reading Airtable. Sign-in
+    // never fails because of this; the next sign-in reports again.
+    if (platformReportingConfigured()) {
+      try {
+        const report = await reportToPlatform({
+          type: "member", squarespaceUserId: uid, email: emailNorm,
+          firstName: firstName ? String(firstName) : "", lastName: lastName ? String(lastName) : "",
+        });
+        if (!report.ok) console.warn(`Platform member report not stored (${report.status})`);
+      } catch {
+        console.warn("Platform member report failed; sign-in continues.");
+      }
+    }
 
     // ✅ signed session token (14 days)
     const exp = Date.now() + 14 * 24 * 60 * 60 * 1000;
