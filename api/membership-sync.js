@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { normalizeMembership } from "../lib/membership.js";
+import { platformReportingConfigured, reportToPlatform } from "../lib/platform-report.js";
 
 const ORIGINS = ["https://www.scarevision.co.uk", "https://scarevision.co.uk"];
 
@@ -29,38 +30,23 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Max-Age", "86400");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Use POST" });
-  const { SCA_SESSION_SECRET: secret, AIRTABLE_USERS_TOKEN: token,
-    AIRTABLE_USERS_BASE_ID: baseId, AIRTABLE_USERS_TABLE: table } = process.env;
-  if (!secret || !token || !baseId || !table) return res.status(503).json({ ok: false, error: "Server not configured" });
+  const secret = process.env.SCA_SESSION_SECRET;
+  if (!secret || !platformReportingConfigured()) return res.status(503).json({ ok: false, error: "Server not configured" });
   const uid = sessionUid(req, secret);
   if (!uid) return res.status(401).json({ ok: false, error: "Invalid session" });
   // Derive tier here rather than trusting a submitted Standard/Premium label.
   const membership = normalizeMembership(req.body?.membership, uid);
   if (!membership) return res.status(422).json({ ok: false, error: "Unrecognised or invalid membership snapshot" });
 
-  async function airtable(path, body) {
-    const response = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}${path}`, {
-      method: body ? "PATCH" : "GET",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) throw new Error("Membership storage unavailable");
-    return response.json();
-  }
+  // Stored in Supabase by the AI platform. An older report never replaces a
+  // newer one there, so a retried snapshot is safe to send again.
   try {
-    const formula = `{SquarespaceUserId}=${JSON.stringify(uid)}`;
-    const found = await airtable(`?maxRecords=2&filterByFormula=${encodeURIComponent(formula)}`);
-    if (found.records?.length !== 1) return res.status(409).json({ ok: false, error: "Expected one existing user record" });
-    const record = found.records[0];
-    const previous = Date.parse(record.fields?.MembershipCheckedAt);
-    if (!Number.isFinite(previous) || previous < Date.parse(membership.checkedAt)) {
-      await airtable(`/${record.id}`, { fields: {
-        MembershipTier: membership.tier,
-        MembershipPlansJson: JSON.stringify(membership.plans),
-        MembershipCheckedAt: membership.checkedAt,
-      } });
-    }
+    const report = await reportToPlatform({
+      type: "membership", squarespaceUserId: uid,
+      tier: membership.tier, plans: membership.plans, checkedAt: membership.checkedAt,
+    });
+    if (report.status === 409) return res.status(409).json({ ok: false, error: "Member not recorded yet" });
+    if (!report.ok) return res.status(502).json({ ok: false, error: "Membership storage unavailable" });
     return res.status(200).json({ ok: true });
   } catch {
     return res.status(502).json({ ok: false, error: "Membership storage unavailable" });

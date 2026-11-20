@@ -36,29 +36,36 @@ This internal Squarespace response is not a supported public API.
 - Refresh happens on visits, not while the member is away. Local data may be
   stale; checkedAt must accompany any interpretation of current membership.
 
-## Airtable
+## Storage (Supabase, through the AI platform)
 
-The existing Users base app27dTDdpc1GoBHO / Table 1 tblx3kkRrg37FnLSJ has:
-MembershipTier (Standard, Premium, Inactive), MembershipPlansJson, and
-MembershipCheckedAt. /api/membership-sync uses the existing AIRTABLE_USERS_*
-configuration and SCA_SESSION_SECRET; no new environment variables are needed.
-It requires a valid existing SCA Bearer token, restricts the origin, binds the
-snapshot to that token's user, recalculates the tier, and only patches those
-three fields on exactly one existing user record. It never creates a partial
-user or modifies progress. Snapshots older than the stored timestamp are ignored.
-Failed writes remain unsynced locally and are retried on a later page load.
+Membership is no longer written to Airtable. /api/membership-sync sends the
+validated snapshot to the AI platform's /api/main-site/report, which stores it in
+Supabase (`public.main_site_members`). /api/session-start-v2 also reports each
+main-site sign-in there (Squarespace ID, email, name), so the AI site can link
+accounts by email without reading Airtable. session-start-v2 still keeps its
+existing Airtable user record for this proxy's progress, exam-date and room
+features.
+
+Configuration on this Vercel project: `AI_PLATFORM_URL` (the AI site's address)
+and `MAIN_SITE_REPORT_SECRET` (the same value as on the AI site's project).
+membership-sync requires a valid existing SCA Bearer token, restricts the origin,
+binds the snapshot to that token's user and recalculates the tier. The platform
+ignores snapshots older than the stored one and stores a time ahead of its clock
+as now. A membership report for someone who has not signed in through
+session-start-v2 yet returns 409 and is retried on a later page load.
 
 This is browser-reported tracking, not independent server verification of a
-Squarespace subscription. Do not use these fields/cookies to grant paid access.
+Squarespace subscription. Do not use it to grant paid access.
 The existing custom session issuance is unchanged.
 
 ## Validation and rollout
 
 Run `node --test tests/membership.test.mjs` and `git diff --check`.
-Create/verify the three Airtable fields before deploying the proxy.
+Apply the AI platform's `main_site_members` migration and set both environment
+variables before deploying the proxy.
 The live Squarespace pages already load the proxy's /sca-auth.js, so no page
 injection changes are needed. Verify a real member visit updates both browser
-storage and the matching Airtable row. Other members populate on their next
+storage and the member's row in `main_site_members`. Other members populate on their next
 visit; this does not backfill inactive visitors.
 
 Rollback: restore the previous public/sca-auth.js. Membership reporting stops;
